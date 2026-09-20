@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens.
+ *
+ * One accent, three ink levels, two surfaces. Everything else is spacing and type.
+ * Dark mode swaps the same names, so no component ever writes a dark: variant for colour.
+ */
+@layer base {
+  :root {
+    --bg: 250 250 249;
+    --surface: 255 255 255;
+    --surface-muted: 245 244 242;
+    --border: 231 229 226;
+    --ink: 28 26 24;
+    --ink-muted: 91 87 82;
+    --ink-subtle: 143 138 131;
+    --accent: 209 74 90;
+    --accent-soft: 253 240 241;
+    --accent-ink: 255 255 255;
+    --success: 42 141 96;
+    --danger: 194 63 57;
+    --font-sans: ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .dark {
+    --bg: 18 17 16;
+    --surface: 28 26 25;
+    --surface-muted: 38 36 34;
+    --border: 56 53 50;
+    --ink: 245 244 242;
+    --ink-muted: 175 170 164;
+    --ink-subtle: 124 119 113;
+    --accent: 226 98 112;
+    --accent-soft: 56 30 34;
+    --accent-ink: 255 255 255;
+    --success: 78 176 130;
+    --danger: 224 106 100;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    /* The app is a single scroll surface; inner panes manage their own overflow. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Visible focus, always. Removing outlines makes the app unusable by keyboard. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-border bg-surface shadow-card;
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /*
+   * The Likes tab.
+   *
+   * This blur is decoration only. A free account never receives the name or the photo URL
+   * in the response - the server strips them - so there is nothing behind the filter to
+   * reveal with dev tools.
+   */
+  .locked-preview {
+    filter: blur(18px) saturate(0.7);
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,36 @@
+# Test profile: in-memory H2, schema generated from the entities, Flyway off.
+#
+# This exists to smoke-test the Spring context, not the schema. Flyway is disabled because
+# V1 is deliberately PostgreSQL-specific (pgcrypto, TIMESTAMPTZ, partial indexes, NULLS
+# LAST) and a second H2-flavoured migration set would drift from the real one - which is
+# worse than not testing it here. Schema correctness is enforced against a real PostgreSQL
+# by `ddl-auto: validate` when the app starts for real.
+spring:
+  datasource:
+    url: jdbc:h2:mem:dating;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+
+app:
+  seed-demo-data: false
+  storage:
+    provider: local
+    local-root: ./target/test-storage
+    public-base-url: http://localhost:8080/api/v1/media/files
+  jwt:
+    secret: dGVzdC1vbmx5LXNlY3JldC1hdC1sZWFzdC10aGlydHktdHdvLWJ5dGVzLWxvbmc=
+
+logging:
+  level:
+    root: WARN
+    com.dating.platform: INFO
+    org.hibernate: WARN

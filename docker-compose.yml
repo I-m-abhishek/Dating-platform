@@ -1,0 +1,31 @@
+# Local dependencies only. The apps themselves run from your IDE or the CLI, so you can
+# restart them without waiting for a container rebuild.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dating-platform-db
+    environment:
+      POSTGRES_DB: dating_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d dating_platform']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional. Swap RateLimitService and the STOMP broker onto this to run more than one
+  # backend instance; nothing in the code requires it for a single node.
+  redis:
+    image: redis:7-alpine
+    container_name: dating-platform-redis
+    ports:
+      - '6379:6379'
+    profiles: ['scale']
+
+volumes:
+  postgres-data:

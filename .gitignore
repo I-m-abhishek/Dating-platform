@@ -1,0 +1,36 @@
+# Java / Maven
+backend/target/
+*.class
+*.jar
+!**/maven-wrapper.jar
+
+# Node / Next
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/.eslintcache
+
+# Local media storage
+backend/storage/
+storage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test artifacts
+backend/target/test-storage/
