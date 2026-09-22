@@ -44,7 +44,7 @@ export function PhotoCommentSheet({ photo, onClose }: PhotoCommentSheetProps) {
     <Sheet open={Boolean(photo)} onClose={onClose} title="Comments" size="tall">
       {photo ? (
         <div className="space-y-5">
-          <div className="relative h-40 overflow-hidden rounded-2xl bg-surface-muted">
+          <div className="relative h-40 overflow-hidden rounded-xl2 bg-surface-muted ring-1 ring-inset ring-border">
             <Image src={photo.url} alt="" fill className="object-cover" unoptimized />
           </div>
 
@@ -55,7 +55,7 @@ export function PhotoCommentSheet({ photo, onClose }: PhotoCommentSheetProps) {
           ) : (
             <ul className="space-y-4">
               {comments.map((comment) => (
-                <li key={comment.id} className="flex gap-3">
+                <li key={comment.id} className="flex animate-slide-up gap-3">
                   <Avatar
                     src={comment.author?.primaryPhotoUrl}
                     name={comment.author?.displayName}
@@ -63,17 +63,21 @@ export function PhotoCommentSheet({ photo, onClose }: PhotoCommentSheetProps) {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm">
-                      <span className="font-medium text-ink">
+                      <span className="font-semibold text-ink">
                         {comment.author?.displayName ?? 'Someone'}
                       </span>{' '}
-                      <span className="text-ink-subtle">{relativeTime(comment.createdAt)}</span>
+                      <span className="text-xs font-medium text-ink-subtle">
+                        {relativeTime(comment.createdAt)}
+                      </span>
                     </p>
-                    <p className="mt-0.5 text-[15px] leading-snug text-ink-muted">{comment.body}</p>
+                    <p className="mt-1 rounded-xl2 rounded-tl-md bg-surface-muted px-3.5 py-2.5 text-[15px] leading-snug text-ink">
+                      {comment.body}
+                    </p>
                     {comment.canDelete ? (
                       <button
                         type="button"
                         onClick={() => remove(comment.id)}
-                        className="mt-1 text-xs text-ink-subtle underline-offset-2 hover:underline"
+                        className="mt-1.5 text-xs font-medium text-ink-subtle underline-offset-2 hover:text-danger hover:underline"
                       >
                         Remove
                       </button>
@@ -94,7 +98,7 @@ export function PhotoCommentSheet({ photo, onClose }: PhotoCommentSheetProps) {
               aria-label="Your comment"
             />
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-ink-subtle">
+              <p className="text-xs font-medium text-ink-subtle">
                 {quota
                   ? quotaLabel(quota.used, quota.limit, quota.unlimited, 'comments')
                   : ' '}

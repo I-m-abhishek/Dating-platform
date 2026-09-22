@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -59,6 +60,16 @@ public class CandidateFinder {
         Set<Gender> wanted = resolveWantedGenders(viewer, filter);
         boolean ignoreDistance = viewer.isGlobalMode();
 
+        /*
+         * The viewer's own age, for the other half of the mutual age test. Taken from the
+         * date of birth rather than a stored age so it cannot drift stale on a birthday.
+         * Absent date of birth is treated as 18, which is the floor the app enforces at
+         * registration anyway.
+         */
+        int viewerAge = viewer.getDateOfBirth() == null
+                ? 18
+                : Period.between(viewer.getDateOfBirth(), today).getYears();
+
         double latDelta = GeoUtils.latDelta(maxDistanceKm);
         double lonDelta = GeoUtils.lonDelta(maxDistanceKm, viewer.getLatitude() == null ? 0 : viewer.getLatitude());
         double lat = viewer.getLatitude() == null ? 0 : viewer.getLatitude();
@@ -72,6 +83,7 @@ public class CandidateFinder {
         List<UUID> ids = discoveryRepository.findCandidateIds(
                 viewer.getId(),
                 viewer.getGender().name(),
+                viewerAge,
                 wanted.stream().map(Enum::name).collect(Collectors.toSet()),
                 oldestDob,
                 youngestDob,
@@ -83,8 +95,9 @@ public class CandidateFinder {
                 excluded,
                 poolSize);
 
-        log.debug("Candidate pool for {}: {} ids (age {}-{}, {} km, genders {})",
-                viewer.getId(), ids.size(), minAge, maxAge, ignoreDistance ? "global" : maxDistanceKm, wanted);
+        log.debug("Candidate pool for {}: {} ids (viewer age {}, wants {}-{}, {} km, genders {})",
+                viewer.getId(), ids.size(), viewerAge, minAge, maxAge,
+                ignoreDistance ? "global" : maxDistanceKm, wanted);
         return ids;
     }
 

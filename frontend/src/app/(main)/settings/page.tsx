@@ -8,6 +8,15 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/Button';
 import { LinkButton } from '@/components/ui/LinkButton';
 import { FullPageLoader } from '@/components/ui/FullPageLoader';
+import { Switch } from '@/components/ui/Switch';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import {
+  DISTANCE_SLIDER_MAX,
+  DISTANCE_SLIDER_MIN,
+  distanceFilterLabel,
+  distanceToSlider,
+  sliderToDistance,
+} from '@/lib/utils/distance';
 import { accountApi, subscriptionApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { useAuthStore } from '@/lib/stores/authStore';
@@ -57,17 +66,20 @@ function SettingsPage() {
    * server's value until a reply arrived - and tripped the rate limiter. The thumb now
    * follows local state and the server is told once, when the drag ends.
    */
-  const [distanceKm, setDistanceKm] = useState(account?.preferredMaxDistanceKm ?? 80);
+  // Slider POSITION, not the stored radius: the top stop maps to "no limit", which is a
+  // much larger number than the slider itself ever shows.
+  const [distanceKm, setDistanceKm] = useState(distanceToSlider(account?.preferredMaxDistanceKm));
 
   useEffect(() => {
     if (account) {
-      setDistanceKm(account.preferredMaxDistanceKm);
+      setDistanceKm(distanceToSlider(account.preferredMaxDistanceKm));
     }
   }, [account?.preferredMaxDistanceKm]);
 
   const commitDistance = () => {
-    if (account && distanceKm !== account.preferredMaxDistanceKm) {
-      updatePreferences.mutate({ preferredMaxDistanceKm: distanceKm });
+    const next = sliderToDistance(distanceKm);
+    if (account && next !== account.preferredMaxDistanceKm) {
+      updatePreferences.mutate({ preferredMaxDistanceKm: next });
     }
   };
 
@@ -86,7 +98,7 @@ function SettingsPage() {
     <>
       <TopBar showBack title="Settings" />
 
-      <div className="space-y-6 p-4 pb-24">
+      <div className="space-y-7 p-4">
         <section className="card divide-y divide-border">
           <Row label="Email" value={account.email} />
           <Row label="Plan" value={entitlements?.planName ?? 'Free'} />
@@ -94,47 +106,65 @@ function SettingsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Discovery</h2>
-
-          <div className="card space-y-4 p-4">
-            <div className="space-y-2">
-              <div className="flex items-baseline justify-between">
-                <label htmlFor="distance" className="text-sm text-ink">
-                  Maximum distance
-                </label>
-                <span className="text-sm tabular-nums text-ink-muted">{distanceKm} km</span>
-              </div>
-              <input
-                id="distance"
-                type="range"
-                min={1}
-                max={500}
-                value={distanceKm}
-                onChange={(event) => setDistanceKm(Number(event.target.value))}
-                onPointerUp={commitDistance}
-                onKeyUp={commitDistance}
-                onBlur={commitDistance}
-                className="w-full accent-accent"
-              />
+          <h2 className="eyebrow px-1">Appearance</h2>
+          <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
+            <div className="min-w-0">
+              <p className="text-[14px] font-medium text-ink">Theme</p>
+              <p className="mt-0.5 text-xs text-ink-subtle">
+                Auto follows your device from sunset to sunrise.
+              </p>
             </div>
-
-            <ToggleRow
-              label="Global mode"
-              description="Ignore distance entirely. Premium."
-              checked={account.globalMode}
-              onChange={(checked) => updatePreferences.mutate({ globalMode: checked })}
-            />
-            <ToggleRow
-              label="Incognito"
-              description="Browse without appearing in discovery. Premium."
-              checked={account.incognito}
-              onChange={(checked) => updatePreferences.mutate({ incognito: checked })}
-            />
+            <ThemeToggle />
           </div>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Subscription</h2>
+          <h2 className="eyebrow px-1">Discovery</h2>
+
+          <div className="card space-y-5 p-5">
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <label htmlFor="distance" className="text-[14px] font-medium text-ink">
+                  Maximum distance
+                </label>
+                <span className="font-display text-[17px] font-semibold tabular-nums text-gradient">
+                  {distanceFilterLabel(distanceKm)}
+                </span>
+              </div>
+              <input
+                id="distance"
+                type="range"
+                min={DISTANCE_SLIDER_MIN}
+                max={DISTANCE_SLIDER_MAX}
+                value={distanceKm}
+                aria-valuetext={distanceFilterLabel(distanceKm)}
+                onChange={(event) => setDistanceKm(Number(event.target.value))}
+                onPointerUp={commitDistance}
+                onKeyUp={commitDistance}
+                onBlur={commitDistance}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-5 border-t border-border pt-5">
+              <Switch
+                label="Global mode"
+                description="Ignore distance entirely. Premium."
+                checked={account.globalMode}
+                onChange={(checked) => updatePreferences.mutate({ globalMode: checked })}
+              />
+              <Switch
+                label="Incognito"
+                description="Browse without appearing in discovery. Premium."
+                checked={account.incognito}
+                onChange={(checked) => updatePreferences.mutate({ incognito: checked })}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="eyebrow px-1">Subscription</h2>
           <div className="flex gap-3">
             <LinkButton href="/plans" variant="outline" fullWidth>
               See plans
@@ -153,7 +183,7 @@ function SettingsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Account</h2>
+          <h2 className="eyebrow px-1">Account</h2>
           <div className="space-y-2">
             <Button
               variant="outline"
@@ -184,37 +214,10 @@ function SettingsPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 px-5 py-3.5">
       <span className="text-sm text-ink-muted">{label}</span>
-      <span className="truncate text-sm text-ink">{value}</span>
+      <span className="truncate text-sm font-medium text-ink">{value}</span>
     </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between gap-4">
-      <span className="min-w-0">
-        <span className="block text-sm text-ink">{label}</span>
-        <span className="block text-xs text-ink-subtle">{description}</span>
-      </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 shrink-0 accent-accent"
-      />
-    </label>
   );
 }
 

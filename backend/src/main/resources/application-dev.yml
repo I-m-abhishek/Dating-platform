@@ -13,3 +13,22 @@ spring:
 
 app:
   seed-demo-data: true
+
+  cors:
+    # Overrides the base list in application.yml - Spring replaces a YAML list rather than
+    # merging it, so localhost has to be repeated here.
+    #
+    # The LAN entry is what lets a phone on the same Wi-Fi talk to the API: the browser
+    # sends Origin: http://<lan-ip>:3000, and an origin that is not on this list is
+    # rejected before the request reaches a controller. Change DEV_LAN_ORIGIN if your IP
+    # moves.
+    allowed-origins:
+      - http://localhost:3000
+      - http://127.0.0.1:3000
+      - ${DEV_LAN_ORIGIN:http://192.168.1.3:3000}
+
+  storage:
+    # Photo URLs are built from this and then STORED in the database, so a row written
+    # while this said "localhost" keeps pointing at localhost forever. If you change it,
+    # existing rows need updating too - see the UPDATE in the README notes.
+    public-base-url: ${STORAGE_PUBLIC_URL:http://192.168.1.3:8080/api/v1/media/files}

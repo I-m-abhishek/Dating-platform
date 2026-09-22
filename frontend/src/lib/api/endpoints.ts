@@ -29,6 +29,7 @@ import type {
   Subscription,
   Tag,
 } from './types';
+import { randomId } from '@/lib/utils/id';
 
 /**
  * The API surface, one function per endpoint.
@@ -117,13 +118,26 @@ export const discoveryApi = {
 };
 
 export const likeApi = {
+  /**
+   * Sends a like.
+   *
+   * <p>The idempotency key is generated here rather than asked of every caller, because the
+   * thing it protects against is a transport-level retry - the caller has no idea one
+   * happened. Without it a retry spends a second like from the daily allowance and can fire
+   * the match notification twice; with it the server recognises the repeat and replays the
+   * original result.
+   */
   like: (payload: {
     targetUserId: string;
     type?: 'STANDARD' | 'SUPER';
     targetPhotoId?: string;
     targetPromptAnswerId?: string;
     note?: string;
-  }) => http.post<LikeResult>('/api/v1/likes', payload),
+  }) =>
+    http.post<LikeResult>('/api/v1/likes', {
+      ...payload,
+      clientLikeId: randomId(),
+    }),
   pass: (targetUserId: string) => http.post<void>('/api/v1/likes/pass', { targetUserId }),
   rewind: () => http.post<{ restoredUserId: string }>('/api/v1/likes/rewind'),
   inbound: (page = 0, size = 20) =>

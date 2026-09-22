@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
+import { ChevronRightIcon, CommentIcon, HeartIcon, ImageIcon } from '@/components/ui/icons';
 import type { Photo } from '@/lib/api/types';
 
 export interface PhotoCarouselProps {
@@ -10,6 +11,9 @@ export interface PhotoCarouselProps {
   alt: string;
   onCommentPhoto?: (photo: Photo) => void;
   onLikePhoto?: (photo: Photo) => void;
+  /** Rendered over the scrim at the bottom - the name block on a feed card. */
+  overlay?: ReactNode;
+  aspect?: 'portrait' | 'tall';
   className?: string;
 }
 
@@ -17,21 +21,34 @@ export interface PhotoCarouselProps {
  * Tap the left or right half to step through photos - the gesture people already know from
  * every other dating app. Keyboard arrows do the same thing, which is the part those apps
  * usually forget.
+ *
+ * <p>Everything laid over the image sits on either a scrim or a blurred puck, because the
+ * one thing you cannot predict about a user-uploaded photo is how light the corner is.
  */
 export function PhotoCarousel({
   photos,
   alt,
   onCommentPhoto,
   onLikePhoto,
+  overlay,
+  aspect = 'portrait',
   className,
 }: PhotoCarouselProps) {
   const [index, setIndex] = useState(0);
   const photo = photos[index];
+  const ratio = aspect === 'tall' ? 'aspect-[4/5]' : 'aspect-[3/4]';
 
   if (!photo) {
     return (
-      <div className={cn('flex aspect-[3/4] items-center justify-center rounded-card bg-surface-muted', className)}>
-        <span className="text-sm text-ink-subtle">No photos yet</span>
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center gap-2 rounded-card bg-surface-muted text-ink-subtle',
+          ratio,
+          className,
+        )}
+      >
+        <ImageIcon size={26} />
+        <span className="text-sm font-medium">No photos yet</span>
       </div>
     );
   }
@@ -40,9 +57,11 @@ export function PhotoCarousel({
     setIndex((current) => Math.min(Math.max(current + delta, 0), photos.length - 1));
   };
 
+  const hasScrim = Boolean(overlay || photo.caption);
+
   return (
     <div
-      className={cn('relative aspect-[3/4] overflow-hidden rounded-card bg-surface-muted', className)}
+      className={cn('group/photo relative overflow-hidden bg-surface-muted', ratio, className)}
       onKeyDown={(event) => {
         if (event.key === 'ArrowRight') step(1);
         if (event.key === 'ArrowLeft') step(-1);
@@ -61,19 +80,24 @@ export function PhotoCarousel({
         unoptimized
       />
 
+      {hasScrim ? (
+        <div aria-hidden className="absolute inset-0 bg-photo-scrim" />
+      ) : null}
+
       {photos.length > 1 ? (
         <>
-          <div className="pointer-events-none absolute inset-x-3 top-3 flex gap-1">
+          <div className="pointer-events-none absolute inset-x-3 top-3 flex gap-1.5">
             {photos.map((item, itemIndex) => (
               <span
                 key={item.id}
                 className={cn(
-                  'h-1 flex-1 rounded-full transition-colors',
-                  itemIndex === index ? 'bg-white' : 'bg-white/35',
+                  'h-[3px] flex-1 rounded-full backdrop-blur-sm transition-colors duration-300',
+                  itemIndex === index ? 'bg-white' : 'bg-white/30',
                 )}
               />
             ))}
           </div>
+
           <button
             type="button"
             aria-label="Previous photo"
@@ -86,34 +110,60 @@ export function PhotoCarousel({
             className="absolute inset-y-0 right-0 w-1/3 focus:outline-none"
             onClick={() => step(1)}
           />
+
+          {/*
+            Visible affordances for a pointer, which has no way to discover that the left and
+            right thirds of an image are tappable. Hidden from assistive tech because the
+            full-height buttons above already carry those labels.
+          */}
+          {index > 0 ? (
+            <span
+              aria-hidden
+              className="glass-dark pointer-events-none absolute left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 rotate-180 items-center justify-center rounded-full text-white opacity-0 transition-opacity duration-200 group-hover/photo:opacity-100 md:flex"
+            >
+              <ChevronRightIcon size={17} />
+            </span>
+          ) : null}
+          {index < photos.length - 1 ? (
+            <span
+              aria-hidden
+              className="glass-dark pointer-events-none absolute right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-white opacity-0 transition-opacity duration-200 group-hover/photo:opacity-100 md:flex"
+            >
+              <ChevronRightIcon size={17} />
+            </span>
+          ) : null}
         </>
       ) : null}
 
       {photo.caption ? (
-        <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10 text-sm text-white">
+        <p className="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-5 text-sm font-medium text-white/90">
           {photo.caption}
         </p>
       ) : null}
 
-      {(onCommentPhoto || onLikePhoto) ? (
-        <div className="absolute bottom-3 right-3 flex gap-2">
-          {onCommentPhoto ? (
-            <button
-              type="button"
-              onClick={() => onCommentPhoto(photo)}
-              className="flex items-center gap-1 rounded-pill bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-sm"
-            >
-              💬 {photo.commentCount > 0 ? photo.commentCount : 'Comment'}
-            </button>
-          ) : null}
+      {overlay ? <div className="absolute inset-x-0 bottom-0 p-5">{overlay}</div> : null}
+
+      {onCommentPhoto || onLikePhoto ? (
+        <div className="absolute right-3 top-3 flex flex-col gap-2">
           {onLikePhoto ? (
             <button
               type="button"
               onClick={() => onLikePhoto(photo)}
               aria-label="Like this photo"
-              className="rounded-pill bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-sm"
+              className="glass-dark flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-110 hover:text-accent active:scale-95"
             >
-              ♡
+              <HeartIcon size={18} />
+            </button>
+          ) : null}
+          {onCommentPhoto ? (
+            <button
+              type="button"
+              onClick={() => onCommentPhoto(photo)}
+              aria-label={`Comment on this photo${photo.commentCount > 0 ? `, ${photo.commentCount} so far` : ''}`}
+              className="glass-dark flex h-10 min-w-10 items-center justify-center gap-1 rounded-full px-2.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-110 active:scale-95"
+            >
+              <CommentIcon size={17} />
+              {photo.commentCount > 0 ? photo.commentCount : null}
             </button>
           ) : null}
         </div>

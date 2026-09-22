@@ -21,7 +21,18 @@ public record LikeRequest(
         UUID targetPromptAnswerId,
 
         @Size(max = 200, message = "Keep your note under 200 characters")
-        String note
+        String note,
+
+        /**
+         * Client-generated idempotency key, ideally a UUIDv7.
+         *
+         * <p>Mobile networks retry. Without this a retried like is indistinguishable from a
+         * second like: it spends another of the day's allowance and can fire the match
+         * notification twice. With it the server recognises the retry and replays the
+         * original outcome. Optional, so older clients keep working.
+         */
+        @Size(max = 64, message = "Idempotency key is too long")
+        String clientLikeId
 ) {
 
     public LikeType typeOrDefault() {

@@ -94,28 +94,65 @@ public class ChatService {
     }
 
     /**
-     * Newest-first page of history. Cursor based: {@code before} is the timestamp of the
-     * oldest message the client already holds.
+     * Newest-first page of history.
+     *
+     * <p>The cursor is {@code "<instant>_<uuid>"} - the timestamp AND id of the oldest
+     * message the client already holds. A timestamp alone is not a unique position: two
+     * messages sharing a millisecond straddle the page boundary, and one of them is either
+     * repeated on the next page or lost between the two. A plain ISO timestamp is still
+     * accepted so an older client keeps paging, it just keeps the old tie behaviour.
      */
     @Transactional(readOnly = true)
     public CursorPageResponse<MessageResponse> messages(UUID userId, UUID conversationId,
-                                                        Instant before, int limit) {
-        requireParticipant(userId, conversationId);
+                                                        String before, int limit) {
+        Conversation conversation = requireParticipant(userId, conversationId);
         int size = Math.clamp(limit, 1, 100);
 
-        Instant cursor = before == null ? Instant.now().plus(1, ChronoUnit.DAYS) : before;
+        Cursor cursor = Cursor.parse(before);
         List<Message> messages = messageRepository.findPage(
-                conversationId, cursor, PageRequest.of(0, size + 1));
+                conversationId, cursor.at(), cursor.id(), PageRequest.of(0, size + 1));
 
         boolean hasMore = messages.size() > size;
         List<Message> pageContent = hasMore ? messages.subList(0, size) : messages;
 
-        List<MessageResponse> rows = pageContent.stream().map(m -> toResponse(m, userId)).toList();
-        String nextCursor = hasMore && !pageContent.isEmpty()
-                ? pageContent.get(pageContent.size() - 1).getCreatedAt().toString()
-                : null;
+        Instant peerReadAt = conversation.lastReadAtFor(conversation.otherParticipant(userId));
+
+        List<MessageResponse> rows = pageContent.stream()
+                .map(m -> toResponse(m, userId, peerReadAt))
+                .toList();
+
+        String nextCursor = null;
+        if (hasMore && !pageContent.isEmpty()) {
+            Message last = pageContent.get(pageContent.size() - 1);
+            nextCursor = last.getCreatedAt() + "_" + last.getId();
+        }
 
         return CursorPageResponse.of(rows, nextCursor);
+    }
+
+    /**
+     * A position in a conversation: when, and which message.
+     *
+     * <p>{@link #id()} falls back to the maximum UUID so that a bare timestamp cursor keeps
+     * the old "everything strictly before this instant" meaning - every real id sorts below
+     * it, so nothing is skipped.
+     */
+    private record Cursor(Instant at, UUID id) {
+
+        private static final UUID MAX_UUID = new UUID(-1L, -1L);
+
+        static Cursor parse(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return new Cursor(Instant.now().plus(1, ChronoUnit.DAYS), MAX_UUID);
+            }
+            int split = raw.lastIndexOf('_');
+            if (split < 0) {
+                return new Cursor(Instant.parse(raw), MAX_UUID);
+            }
+            return new Cursor(
+                    Instant.parse(raw.substring(0, split)),
+                    UUID.fromString(raw.substring(split + 1)));
+        }
     }
 
     @Transactional(readOnly = true)
@@ -231,7 +268,16 @@ public class ChatService {
     @Transactional
     public void markRead(UUID userId, UUID conversationId) {
         Conversation conversation = requireParticipant(userId, conversationId);
-        messageRepository.markRead(conversationId, userId, Instant.now());
+
+        /*
+         * One watermark, not a write per message. The old version UPDATEd read_at on every
+         * unread row, so opening a thread with 500 unread messages was 500 row writes to
+         * record a single fact: how far this person has read.
+         */
+        messageRepository
+                .findFirstByConversationIdAndSenderIdNotOrderByCreatedAtDesc(conversationId, userId)
+                .ifPresent(newest -> conversation.markReadUpTo(userId, newest.getCreatedAt()));
+
         conversation.clearUnreadFor(userId);
         conversationRepository.save(conversation);
 
@@ -361,8 +407,27 @@ public class ChatService {
     }
 
     private MessageResponse toResponse(Message message, UUID viewerId) {
+        return toResponse(message, viewerId, null);
+    }
+
+    /**
+     * @param peerReadAt how far the OTHER participant has read, or null when unknown
+     */
+    private MessageResponse toResponse(Message message, UUID viewerId, Instant peerReadAt) {
         List<AttachmentResponse> attachments = message.getAttachments() == null ? List.of()
                 : message.getAttachments().stream().map(AttachmentResponse::from).toList();
+
+        /*
+         * Read state is derived, not stored per row. A message I sent counts as read once
+         * the other person's watermark has reached it. message.readAt is still consulted as
+         * a fallback so conversations written before the watermark existed keep their
+         * receipts.
+         */
+        Instant readAt = message.getReadAt();
+        boolean mine = message.getSenderId().equals(viewerId);
+        if (mine && peerReadAt != null && !peerReadAt.isBefore(message.getCreatedAt())) {
+            readAt = peerReadAt;
+        }
 
         return new MessageResponse(
                 message.getId(),
@@ -375,7 +440,7 @@ public class ChatService {
                 message.getReplyToId(),
                 message.isDeleted(),
                 message.getDeliveredAt(),
-                message.getReadAt(),
+                readAt,
                 message.getClientMessageId(),
                 message.getCreatedAt());
     }

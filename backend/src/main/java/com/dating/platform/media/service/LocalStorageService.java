@@ -42,8 +42,10 @@ public class LocalStorageService implements StorageService {
 
     private final Path root;
     private final String publicBaseUrl;
+    private final ImageMetadataStripper metadataStripper;
 
-    public LocalStorageService(AppProperties properties) {
+    public LocalStorageService(AppProperties properties, ImageMetadataStripper metadataStripper) {
+        this.metadataStripper = metadataStripper;
         this.root = Paths.get(properties.storage().localRoot()).toAbsolutePath().normalize();
         this.publicBaseUrl = trimTrailingSlash(properties.storage().publicBaseUrl());
         try {
@@ -63,10 +65,25 @@ public class LocalStorageService implements StorageService {
         String key = folder + "/" + UUID.randomUUID() + extension;
         Path target = resolveInsideRoot(key);
 
+        long storedBytes;
         try {
             Files.createDirectories(target.getParent());
-            try (InputStream in = file.getInputStream()) {
-                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            /*
+             * Images are read fully and stripped of metadata before anything is written.
+             * EXIF on a phone photo carries the GPS position it was taken at, and these
+             * files are served from a public path - writing the original bytes publishes
+             * the user's location. Non-images stream straight through as before, since
+             * there is no container we understand well enough to edit safely.
+             */
+            if (metadataStripper.canStrip(file.getContentType())) {
+                byte[] cleaned = metadataStripper.strip(file.getBytes(), file.getContentType());
+                Files.write(target, cleaned);
+                storedBytes = cleaned.length;
+            } else {
+                try (InputStream in = file.getInputStream()) {
+                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                storedBytes = file.getSize();
             }
         } catch (IOException e) {
             log.error("Failed writing upload to {}", target, e);
@@ -74,7 +91,7 @@ public class LocalStorageService implements StorageService {
         }
 
         Dimensions dimensions = readDimensions(target, file.getContentType());
-        return new StoredFile(key, publicBaseUrl + "/" + key, file.getContentType(), file.getSize(),
+        return new StoredFile(key, publicBaseUrl + "/" + key, file.getContentType(), storedBytes,
                 dimensions.width(), dimensions.height());
     }
 

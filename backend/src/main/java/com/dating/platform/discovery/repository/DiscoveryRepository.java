@@ -36,6 +36,8 @@ public interface DiscoveryRepository extends JpaRepository<User, UUID> {
               AND u.longitude IS NOT NULL
               AND u.date_of_birth BETWEEN :oldestDob AND :youngestDob
               AND u.gender IN (:wantedGenders)
+              AND u.preferred_min_age <= :viewerAge
+              AND u.preferred_max_age >= :viewerAge
               AND (
                     :ignoreDistance = TRUE
                     OR (u.latitude BETWEEN :minLat AND :maxLat
@@ -56,6 +58,7 @@ public interface DiscoveryRepository extends JpaRepository<User, UUID> {
             """, nativeQuery = true)
     List<UUID> findCandidateIds(@Param("viewerId") UUID viewerId,
                                 @Param("viewerGender") String viewerGender,
+                                @Param("viewerAge") int viewerAge,
                                 @Param("wantedGenders") Collection<String> wantedGenders,
                                 @Param("oldestDob") LocalDate oldestDob,
                                 @Param("youngestDob") LocalDate youngestDob,

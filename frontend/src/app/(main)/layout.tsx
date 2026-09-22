@@ -14,9 +14,16 @@ import { BottomNav } from '@/components/layout/BottomNav';
  */
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="relative flex min-h-screen bg-bg">
+      {/* Ambient wash. Fixed and inert, so it never intercepts a tap or scrolls with content. */}
+      <div aria-hidden className="aurora" />
+
       <SideNav />
-      <main className="mx-auto w-full max-w-2xl flex-1 pb-20 md:pb-0">{children}</main>
+
+      <main className="relative z-10 mx-auto w-full max-w-2xl flex-1 pb-28 md:pb-10">
+        {children}
+      </main>
+
       <BottomNav />
     </div>
   );

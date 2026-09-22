@@ -62,6 +62,10 @@ public class Like extends BaseUuidEntity {
     @Column(name = "target_prompt_answer_id")
     private UUID targetPromptAnswerId;
 
+    /** Idempotency key from the client; unique per sender where present. */
+    @Column(name = "client_like_id", length = 64)
+    private String clientLikeId;
+
     @Column(name = "note", length = 200)
     private String note;
 

@@ -40,21 +40,26 @@ export function ProfileDetails(props: ProfileDetailsProps) {
   const shared = new Set(props.sharedInterests ?? []);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/*
+        One column on the narrowest phones. At 320px two columns leave 89px of text per
+        tile, which is narrower than the word "Infrastructure" - the value then spills out
+        of its own tile. break-words is the backstop for the ones that are longer still.
+      */}
       {present.length > 0 ? (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           {present.map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs uppercase tracking-wide text-ink-subtle">{label}</dt>
-              <dd className="mt-0.5 text-sm text-ink">{value}</dd>
+            <div key={label} className="min-w-0 rounded-xl2 bg-surface-muted px-3.5 py-3">
+              <dt className="eyebrow">{label}</dt>
+              <dd className="mt-1 break-words text-[14px] font-semibold text-ink">{value}</dd>
             </div>
           ))}
         </dl>
       ) : null}
 
       {props.interests?.length ? (
-        <section className="space-y-2">
-          <h3 className="text-xs uppercase tracking-wide text-ink-subtle">Interests</h3>
+        <section className="space-y-2.5">
+          <h3 className="eyebrow">Interests</h3>
           <div className="flex flex-wrap gap-2">
             {props.interests.map((interest) => (
               <Chip key={interest.id} size="sm" selected={shared.has(interest.label)}>
@@ -67,8 +72,8 @@ export function ProfileDetails(props: ProfileDetailsProps) {
       ) : null}
 
       {props.qualities?.length ? (
-        <section className="space-y-2">
-          <h3 className="text-xs uppercase tracking-wide text-ink-subtle">Qualities</h3>
+        <section className="space-y-2.5">
+          <h3 className="eyebrow">Qualities</h3>
           <div className="flex flex-wrap gap-2">
             {props.qualities.map((quality) => (
               <Chip key={quality.id} size="sm">

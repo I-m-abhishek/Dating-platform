@@ -36,13 +36,15 @@ function LoginPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-ink">Welcome back</h1>
-        <p className="text-sm text-ink-muted">Sign in to pick up where you left off.</p>
+    <div className="animate-slide-up space-y-7">
+      <div className="space-y-1.5">
+        <h1 className="font-display text-[32px] font-semibold leading-tight tracking-[-0.025em] text-ink">
+          Welcome back
+        </h1>
+        <p className="text-[15px] text-ink-muted">Sign in to pick up where you left off.</p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <form onSubmit={onSubmit} className="space-y-5" noValidate>
         <Input
           label="Email"
           type="email"
@@ -65,19 +67,25 @@ function LoginPage() {
         />
 
         {error ? (
-          <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">
+          <p
+            role="alert"
+            className="animate-slide-up rounded-xl2 bg-danger/10 px-4 py-3 text-sm font-medium text-danger ring-1 ring-inset ring-danger/20"
+          >
             {error}
           </p>
         ) : null}
 
-        <Button type="submit" fullWidth loading={submitting}>
+        <Button type="submit" size="lg" fullWidth loading={submitting}>
           Sign in
         </Button>
       </form>
 
       <p className="text-center text-sm text-ink-muted">
         New here?{' '}
-        <Link href="/register" className="font-medium text-accent underline-offset-4 hover:underline">
+        <Link
+          href="/register"
+          className="font-semibold text-accent underline-offset-4 hover:underline"
+        >
           Create an account
         </Link>
       </p>

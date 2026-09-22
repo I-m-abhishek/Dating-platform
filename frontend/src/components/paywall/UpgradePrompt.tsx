@@ -1,6 +1,7 @@
 'use client';
 
-import Link from 'next/link';
+import { LinkButton } from '@/components/ui/LinkButton';
+import { SparkleIcon } from '@/components/ui/icons';
 import { humanise } from '@/lib/utils/format';
 import type { Feature } from '@/lib/api/types';
 
@@ -33,20 +34,27 @@ export function UpgradePrompt({ feature }: { feature: Feature }) {
   const copy = COPY[feature] ?? { title: humanise(feature), body: 'Available on a paid plan.' };
 
   return (
-    <div className="flex flex-col items-center gap-4 px-6 py-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-2xl">
-        ✦
+    <div className="flex animate-slide-up flex-col items-center gap-5 px-6 py-16 text-center">
+      <div className="relative flex h-[72px] w-[72px] items-center justify-center">
+        <span
+          aria-hidden
+          className="absolute inset-0 animate-pulse-ring rounded-full bg-accent opacity-25"
+        />
+        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-accent-gradient text-white shadow-glow-lg">
+          <SparkleIcon size={30} />
+        </span>
       </div>
-      <div className="space-y-1.5">
-        <h2 className="text-lg font-semibold text-ink">{copy.title}</h2>
-        <p className="mx-auto max-w-sm text-sm text-ink-muted">{copy.body}</p>
+
+      <div className="space-y-2">
+        <h2 className="font-display text-[23px] font-semibold tracking-[-0.02em] text-ink">
+          {copy.title}
+        </h2>
+        <p className="mx-auto max-w-[20rem] text-sm leading-relaxed text-ink-muted">{copy.body}</p>
       </div>
-      <Link
-        href="/plans"
-        className="mt-1 inline-flex h-11 items-center justify-center rounded-pill bg-accent px-6 text-[15px] font-medium text-accent-ink transition-[filter] hover:brightness-95"
-      >
+
+      <LinkButton href="/plans" size="lg">
         See plans
-      </Link>
+      </LinkButton>
     </div>
   );
 }

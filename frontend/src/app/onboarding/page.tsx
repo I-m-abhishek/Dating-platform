@@ -7,6 +7,8 @@ import { withAuth, withErrorBoundary } from '@/hoc';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Textarea } from '@/components/ui/Textarea';
+import { CheckIcon, LogoMark, MapPinIcon, PlusIcon } from '@/components/ui/icons';
+import { Spinner } from '@/components/ui/Spinner';
 import { accountApi } from '@/lib/api/endpoints';
 import { usePhotos, useReferenceData, useUpdateProfile } from '@/lib/hooks/useProfile';
 import { useAuthStore } from '@/lib/stores/authStore';
@@ -108,42 +110,69 @@ function OnboardingPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-6 py-10">
-      <div className="mb-8 flex gap-1.5" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
-        {STEPS.map((label, index) => (
-          <span
-            key={label}
-            className={index <= step ? 'h-1 flex-1 rounded-full bg-accent' : 'h-1 flex-1 rounded-full bg-border'}
-          />
-        ))}
-      </div>
+    <div className="relative min-h-screen bg-bg">
+      <div aria-hidden className="aurora" />
 
-      <div className="flex-1 space-y-6">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col px-6 py-10">
+        <div className="mb-3 flex items-center justify-between">
+          <LogoMark size={28} />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+            {STEPS[step]} &middot; {step + 1}/{STEPS.length}
+          </span>
+        </div>
+
+        <div className="mb-9 flex gap-1.5" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
+          {STEPS.map((label, index) => (
+            <span
+              key={label}
+              className={
+                index <= step
+                  ? 'h-1.5 flex-1 rounded-full bg-accent-gradient transition-all duration-500 ease-snap'
+                  : 'h-1.5 flex-1 rounded-full bg-border transition-all duration-500 ease-snap'
+              }
+            />
+          ))}
+        </div>
+
+        <div key={step} className="flex-1 animate-slide-up space-y-6">
         {step === 0 ? (
-          <section className="space-y-3">
-            <h1 className="text-xl font-semibold text-ink">Where are you?</h1>
-            <p className="text-sm text-ink-muted">
+          <section className="space-y-4">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-gradient text-white shadow-glow">
+              <MapPinIcon size={26} />
+            </span>
+            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink">
+              Where are you?
+            </h1>
+            <p className="text-[15px] leading-relaxed text-ink-muted">
               We use this to show people nearby. Others only ever see a rounded distance, never
               your location.
             </p>
-            <Button fullWidth loading={locating} onClick={shareLocation}>
+            <Button
+              fullWidth
+              size="lg"
+              loading={locating}
+              onClick={shareLocation}
+              leftIcon={located ? <CheckIcon size={18} /> : undefined}
+            >
               {located ? 'Location saved' : 'Share my location'}
             </Button>
           </section>
         ) : null}
 
         {step === 1 ? (
-          <section className="space-y-3">
-            <h1 className="text-xl font-semibold text-ink">Add a few photos</h1>
-            <p className="text-sm text-ink-muted">
+          <section className="space-y-4">
+            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink">
+              Add a few photos
+            </h1>
+            <p className="text-[15px] leading-relaxed text-ink-muted">
               At least one to continue. Four is where profiles start doing well.
             </p>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {photos.map((photo) => (
                 <div
                   key={photo.id}
-                  className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-surface-muted"
+                  className="relative aspect-[3/4] animate-scale-in overflow-hidden rounded-xl2 bg-surface-muted shadow-card"
                 >
                   <Image src={photo.url} alt="" fill className="object-cover" unoptimized />
                 </div>
@@ -153,9 +182,9 @@ function OnboardingPage() {
                   type="button"
                   onClick={() => fileInput.current?.click()}
                   disabled={isUploading}
-                  className="flex aspect-[3/4] items-center justify-center rounded-2xl border-2 border-dashed border-border text-2xl text-ink-subtle hover:border-accent hover:text-accent"
+                  className="flex aspect-[3/4] items-center justify-center rounded-xl2 border-2 border-dashed border-border text-ink-subtle transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent"
                 >
-                  {isUploading ? '…' : '+'}
+                  {isUploading ? <Spinner className="h-5 w-5" /> : <PlusIcon size={24} />}
                 </button>
               ) : null}
             </div>
@@ -174,8 +203,10 @@ function OnboardingPage() {
         ) : null}
 
         {step === 2 ? (
-          <section className="space-y-4">
-            <h1 className="text-xl font-semibold text-ink">A little about you</h1>
+          <section className="space-y-5">
+            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink">
+              A little about you
+            </h1>
             <Textarea
               label="Bio"
               value={bio}
@@ -184,8 +215,8 @@ function OnboardingPage() {
               placeholder="What would you want someone to know before they message you?"
               onChange={(event) => setBio(event.target.value)}
             />
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-ink-muted">I am looking for</p>
+            <div className="space-y-2.5">
+              <p className="eyebrow">I am looking for</p>
               <div className="flex flex-wrap gap-2">
                 {INTENTS.map((value) => (
                   <Chip key={value} selected={intent === value} onClick={() => setIntent(value)}>
@@ -198,12 +229,15 @@ function OnboardingPage() {
         ) : null}
 
         {step === 3 ? (
-          <section className="space-y-3">
-            <h1 className="text-xl font-semibold text-ink">What are you into?</h1>
-            <p className="text-sm text-ink-muted">
+          <section className="space-y-4">
+            <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink">
+              What are you into?
+            </h1>
+            <p className="text-[15px] leading-relaxed text-ink-muted">
               Pick a few. These are what the matching engine compares when it picks your weekly
               match.
             </p>
+            <p className="eyebrow">{interestIds.length} of 12 chosen</p>
             <div className="flex flex-wrap gap-2">
               {interests.map((tag) => (
                 <Chip
@@ -218,29 +252,31 @@ function OnboardingPage() {
               ))}
             </div>
           </section>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
 
-      <div className="flex gap-3 pt-8">
-        {step > 0 ? (
-          <Button variant="ghost" fullWidth onClick={() => setStep(step - 1)}>
-            Back
-          </Button>
-        ) : null}
+        <div className="flex gap-3 pt-8">
+          {step > 0 ? (
+            <Button variant="ghost" size="lg" fullWidth onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+          ) : null}
 
-        {step < STEPS.length - 1 ? (
-          <Button
-            fullWidth
-            disabled={(step === 0 && !located) || (step === 1 && photos.length === 0)}
-            onClick={() => setStep(step + 1)}
-          >
-            Continue
-          </Button>
-        ) : (
-          <Button fullWidth loading={finishing} onClick={() => void finish()}>
-            Start matching
-          </Button>
-        )}
+          {step < STEPS.length - 1 ? (
+            <Button
+              fullWidth
+              size="lg"
+              disabled={(step === 0 && !located) || (step === 1 && photos.length === 0)}
+              onClick={() => setStep(step + 1)}
+            >
+              Continue
+            </Button>
+          ) : (
+            <Button fullWidth size="lg" loading={finishing} onClick={() => void finish()}>
+              Start matching
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

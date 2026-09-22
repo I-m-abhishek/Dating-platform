@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { cn } from '@/lib/utils/cn';
+import { ImageIcon } from '@/components/ui/icons';
 import { durationLabel, messageTimestamp } from '@/lib/utils/format';
 import type { Message } from '@/lib/api/types';
 
@@ -20,8 +21,8 @@ export interface MessageBubbleProps {
 export function MessageBubble({ message, showReadReceipt }: MessageBubbleProps) {
   if (message.type === 'SYSTEM' || message.type === 'CALL_SUMMARY') {
     return (
-      <li className="my-3 flex justify-center">
-        <span className="rounded-pill bg-surface-muted px-3 py-1 text-xs text-ink-subtle">
+      <li className="my-4 flex justify-center">
+        <span className="rounded-pill bg-surface-muted px-3.5 py-1.5 text-[11.5px] font-medium text-ink-subtle ring-1 ring-inset ring-border">
           {message.body}
         </span>
       </li>
@@ -31,22 +32,22 @@ export function MessageBubble({ message, showReadReceipt }: MessageBubbleProps) 
   const mine = message.mine;
 
   return (
-    <li className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+    <li className={cn('flex w-full animate-slide-up', mine ? 'justify-end' : 'justify-start')}>
       <div className="max-w-[78%] space-y-1">
         {message.attachments.map((attachment) => (
           <Attachment key={attachment.id} attachment={attachment} mine={mine} />
         ))}
 
         {message.deleted ? (
-          <p className="rounded-2xl bg-surface-muted px-3.5 py-2 text-sm italic text-ink-subtle">
+          <p className="rounded-2xl bg-surface-muted px-4 py-2.5 text-sm italic text-ink-subtle">
             Message removed
           </p>
         ) : message.body ? (
           <p
             className={cn(
-              'whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[15px] leading-snug',
+              'whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-[15px] leading-[1.45]',
               mine
-                ? 'rounded-br-md bg-accent text-accent-ink'
+                ? 'rounded-br-md bg-accent-gradient text-white shadow-[0_6px_18px_-10px_rgb(var(--accent)/0.9)]'
                 : 'rounded-bl-md bg-surface-muted text-ink',
             )}
           >
@@ -54,7 +55,12 @@ export function MessageBubble({ message, showReadReceipt }: MessageBubbleProps) 
           </p>
         ) : null}
 
-        <p className={cn('px-1 text-[11px] text-ink-subtle', mine ? 'text-right' : 'text-left')}>
+        <p
+          className={cn(
+            'px-1.5 text-[11px] font-medium text-ink-subtle',
+            mine ? 'text-right' : 'text-left',
+          )}
+        >
           {messageTimestamp(message.createdAt)}
           {mine && showReadReceipt ? (message.readAt ? ' · Read' : ' · Sent') : null}
         </p>
@@ -72,7 +78,7 @@ function Attachment({
 }) {
   if (attachment.contentType.startsWith('image/')) {
     return (
-      <div className="relative h-56 w-56 overflow-hidden rounded-2xl bg-surface-muted">
+      <div className="relative h-56 w-56 overflow-hidden rounded-2xl bg-surface-muted ring-1 ring-inset ring-border">
         <Image
           src={attachment.url}
           alt={attachment.fileName ?? 'Attachment'}
@@ -89,7 +95,7 @@ function Attachment({
       <div
         className={cn(
           'flex items-center gap-3 rounded-2xl px-3 py-2.5',
-          mine ? 'bg-accent text-accent-ink' : 'bg-surface-muted text-ink',
+          mine ? 'bg-accent-gradient text-white' : 'bg-surface-muted text-ink',
         )}
       >
         <audio controls src={attachment.url} className="h-8 max-w-[200px]">
@@ -115,9 +121,10 @@ function Attachment({
       href={attachment.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-2xl bg-surface-muted px-3.5 py-2.5 text-sm text-ink underline-offset-2 hover:underline"
+      className="flex items-center gap-2 rounded-2xl bg-surface-muted px-4 py-2.5 text-sm font-medium text-ink ring-1 ring-inset ring-border transition-colors hover:bg-border/50"
     >
-      📎 {attachment.fileName ?? 'Attachment'}
+      <ImageIcon size={17} className="shrink-0 text-ink-subtle" />
+      {attachment.fileName ?? 'Attachment'}
     </a>
   );
 }

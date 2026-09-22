@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { compose, withAuth, withErrorBoundary } from '@/hoc';
 import { TopBar } from '@/components/layout/TopBar';
 import { FeedCardView } from '@/components/discovery/FeedCardView';
 import { FilterSheet } from '@/components/discovery/FilterSheet';
 import { PhotoCommentSheet } from '@/components/profile/PhotoCommentSheet';
 import { Button } from '@/components/ui/Button';
+import { SlidersIcon } from '@/components/ui/icons';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -89,16 +90,22 @@ function HomePage() {
     <>
       <TopBar
         title="Discover"
+        subtitle="People we think you will get on with"
         action={
-          <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFiltersOpen(true)}
+            leftIcon={<SlidersIcon size={16} />}
+          >
             Filters
           </Button>
         }
       />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-5 p-4">
         {query.isPending ? (
-          <Skeleton.Cards count={2} />
+          <Skeleton.Feed count={2} />
         ) : query.isError ? (
           <ErrorState description={messageOf(query.error)} onRetry={() => void query.refetch()} />
         ) : cards.length === 0 ? (
@@ -113,22 +120,31 @@ function HomePage() {
           />
         ) : (
           <>
-            {cards.map((card) => (
-              <FeedCardView
+            {cards.map((card, index) => (
+              <div
                 key={card.userId}
-                card={card}
-                busy={isActing}
-                onLike={(photo) => void onLike(card.userId, photo)}
-                onPass={() => void pass(card.userId)}
-                onCommentPhoto={setCommentPhoto}
-              />
+                className="stagger"
+                style={{ '--i': Math.min(index, 6) } as CSSProperties}
+              >
+                <FeedCardView
+                  card={card}
+                  busy={isActing}
+                  onLike={(photo) => void onLike(card.userId, photo)}
+                  onPass={() => void pass(card.userId)}
+                  onCommentPhoto={setCommentPhoto}
+                />
+              </div>
             ))}
 
             {hasMore ? (
-              <Button variant="outline" fullWidth onClick={() => setPage(page + 1)}>
-                Show more
+              <Button variant="outline" size="lg" fullWidth onClick={() => setPage(page + 1)}>
+                Show me more people
               </Button>
-            ) : null}
+            ) : (
+              <p className="py-6 text-center text-sm text-ink-subtle">
+                That is everyone for now. Check back later.
+              </p>
+            )}
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 
 /** One row in the actions menu. Destructive rows carry the danger tint on the icon and label. */
@@ -10,7 +11,7 @@ export function ActionRow({
   tone,
   onClick,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   description: string;
   tone?: 'danger';
@@ -21,23 +22,29 @@ export function ActionRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-surface-muted"
+      className="flex w-full items-center gap-3.5 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-surface-muted"
     >
       <span
         aria-hidden
         className={
           danger
-            ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger'
-            : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-muted'
+            ? 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger'
+            : 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-muted'
         }
       >
         {icon}
       </span>
       <span className="min-w-0">
-        <span className={danger ? 'block text-sm font-medium text-danger' : 'block text-sm font-medium text-ink'}>
+        <span
+          className={
+            danger
+              ? 'block text-[14px] font-semibold text-danger'
+              : 'block text-[14px] font-semibold text-ink'
+          }
+        >
           {label}
         </span>
-        <span className="block text-xs text-ink-subtle">{description}</span>
+        <span className="block text-xs leading-snug text-ink-subtle">{description}</span>
       </span>
     </button>
   );
@@ -60,16 +67,18 @@ export function ConfirmPanel({
   onConfirm: () => void;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
-        <p className="mt-1.5 text-sm text-ink-muted">{body}</p>
+        <h2 className="font-display text-[21px] font-semibold tracking-[-0.02em] text-ink">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
       </div>
       <div className="flex gap-3">
-        <Button variant="ghost" fullWidth onClick={onCancel}>
+        <Button variant="ghost" size="lg" fullWidth onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="danger" fullWidth loading={busy} onClick={onConfirm}>
+        <Button variant="danger" size="lg" fullWidth loading={busy} onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </div>

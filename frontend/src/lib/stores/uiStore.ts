@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { Feature, PlanTier } from '@/lib/api/types';
+import { randomId } from '@/lib/utils/id';
 
 export interface Toast {
   id: string;
@@ -37,7 +38,7 @@ export const useUiStore = create<UiState>((set) => ({
   filtersOpen: false,
 
   toast(toast) {
-    const id = crypto.randomUUID();
+    const id = randomId();
     set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));
     // Toasts are transient by design; anything that must persist belongs in a notification.
     setTimeout(() => {

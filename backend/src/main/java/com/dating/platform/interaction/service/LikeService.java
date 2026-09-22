@@ -35,6 +35,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -81,13 +82,39 @@ public class LikeService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", receiverId));
 
         Entitlements entitlements = entitlementService.entitlementsOf(senderId);
-        quotaService.consume(senderId, QuotaFeature.LIKE, entitlements.likesPerDay(),
-                "Upgrade for more likes every day");
+
+        /*
+         * Idempotency, before anything is spent.
+         *
+         * A retry carries the same clientLikeId as the original, so it replays the original
+         * outcome instead of being charged again. This has to run ahead of the quota
+         * consume: the old order spent an allowance first and only then discovered the like
+         * was a duplicate, so a flaky connection cost the user a like AND returned an error.
+         */
+        if (StringUtils.hasText(request.clientLikeId())) {
+            Optional<Like> replay = likeRepository.findBySenderIdAndClientLikeId(
+                    senderId, request.clientLikeId());
+            if (replay.isPresent()) {
+                Like original = replay.get();
+                log.debug("Replaying like {} for idempotency key {}", original.getId(), request.clientLikeId());
+                return new LikeResultResponse(
+                        original.getId(),
+                        original.getStatus() == LikeStatus.MATCHED,
+                        original.getStatus() == LikeStatus.MATCHED
+                                ? matchService.findMatchFor(senderId, receiverId).orElse(null)
+                                : null,
+                        remainingLikes(senderId, entitlements));
+            }
+        }
 
         Optional<Like> existing = likeRepository.findBySenderIdAndReceiverId(senderId, receiverId);
         if (existing.isPresent() && existing.get().getStatus() != LikeStatus.WITHDRAWN) {
+            // Also checked before the quota consume, for the same reason.
             throw new BusinessException(ErrorCode.ALREADY_LIKED);
         }
+
+        quotaService.consume(senderId, QuotaFeature.LIKE, entitlements.likesPerDay(),
+                "Upgrade for more likes every day");
 
         Like like = existing.orElseGet(() -> Like.builder()
                 .senderId(senderId)
@@ -98,6 +125,7 @@ public class LikeService {
         like.setTargetPhotoId(request.targetPhotoId());
         like.setTargetPromptAnswerId(request.targetPromptAnswerId());
         like.setNote(request.note());
+        like.setClientLikeId(request.clientLikeId());
         like.setSeen(false);
         like = likeRepository.save(like);
 

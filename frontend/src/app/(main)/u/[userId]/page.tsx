@@ -10,6 +10,15 @@ import { ProfileActionsSheet } from '@/components/profile/ProfileActionsSheet';
 import { Button } from '@/components/ui/Button';
 import { FullPageLoader } from '@/components/ui/FullPageLoader';
 import { ErrorState } from '@/components/ui/ErrorState';
+import {
+  ArrowLeftIcon,
+  ChatIcon,
+  CheckIcon,
+  CloseIcon,
+  CommentIcon,
+  HeartIcon,
+  SparkleIcon,
+} from '@/components/ui/icons';
 import { usePublicProfile } from '@/lib/hooks/useProfile';
 import { usePaywall } from '@/lib/hooks/usePaywall';
 import { likeApi } from '@/lib/api/endpoints';
@@ -36,7 +45,7 @@ function PublicProfilePage() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (query.isPending) return <FullPageLoader />;
+  if (query.isPending) return <FullPageLoader label="Loading profile" />;
   if (query.isError) {
     return <ErrorState description={messageOf(query.error)} onRetry={() => void query.refetch()} />;
   }
@@ -45,7 +54,10 @@ function PublicProfilePage() {
   if (!profile) return null;
 
   // Falls back to "no relationship" against an older server - see PublicProfile.relationship.
-  const relationship = profile.relationship ?? { matched: false, likeSent: false };
+  const relationship = profile.relationship ?? {
+    matched: false,
+    likeSent: false,
+  };
 
   const [heroPhoto, ...morePhotos] = profile.photos;
   const compatibility = compatibilityLabel(profile.compatibilityScore);
@@ -55,7 +67,10 @@ function PublicProfilePage() {
     setBusy(true);
     try {
       const result = await likeApi.like({ targetUserId: profile.userId });
-      toast({ title: result.matched ? 'It is a match' : 'Like sent', tone: 'success' });
+      toast({
+        title: result.matched ? 'It is a match' : 'Like sent',
+        tone: 'success',
+      });
       if (result.matched && result.match?.conversationId) {
         router.push(`/messages/${result.match.conversationId}`);
       }
@@ -89,165 +104,195 @@ function PublicProfilePage() {
   }
 
   return (
-    <div className="pb-36 md:pb-28">
-      {/* Floating controls over the hero rather than a solid bar - the photo is the header. */}
-      <div className="pointer-events-none sticky top-0 z-30 flex items-start justify-between p-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="Go back"
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-lg text-white backdrop-blur-md transition-colors hover:bg-black/55"
-        >
-          ←
-        </button>
-        <button
-          type="button"
-          onClick={() => setActionsOpen(true)}
-          aria-label="More options"
-          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-lg text-white backdrop-blur-md transition-colors hover:bg-black/55"
-        >
-          ⋯
-        </button>
-      </div>
+    <div className="pb-44 md:pb-28">
+      {/* ---- hero ---- */}
+      <section className="relative aspect-[4/5] w-full overflow-hidden bg-surface-muted">
+        {heroPhoto ? (
+          <Image
+            src={heroPhoto.url}
+            alt={profile.displayName}
+            fill
+            sizes="(max-width: 768px) 100vw, 640px"
+            className="object-cover"
+            priority
+            unoptimized
+          />
+        ) : null}
 
-      <div className="-mt-16">
-        {/* ---- hero ---- */}
-        <section className="relative aspect-[4/5] w-full overflow-hidden bg-surface-muted">
-          {heroPhoto ? (
-            <Image
-              src={heroPhoto.url}
-              alt={profile.displayName}
-              fill
-              sizes="(max-width: 768px) 100vw, 640px"
-              className="object-cover"
-              priority
-            />
-          ) : null}
+        {/*
+          Floating controls over the hero rather than a solid bar - the photo is the header.
+          Absolute within the hero, so they scroll away with it. They used to be sticky to
+          the whole page, which left two dark pucks hovering over the profile text all the
+          way down. Sticky is not an option here either way: the hero clips its children, and
+          `overflow: hidden` makes it a scrollport a sticky child has nothing to stick to.
+        */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-3 pt-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Go back"
+            className="glass-dark pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+          >
+            <ArrowLeftIcon size={19} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setActionsOpen(true)}
+            aria-label="More options"
+            className="glass-dark pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+          >
+            <span aria-hidden>···</span>
+          </button>
+        </div>
 
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent px-5 pb-5 pt-20">
+        <div className="absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-4 bg-photo-scrim px-5 pb-6 pt-24">
+          <div className="min-w-0 flex-1">
             {/*
               Solid pills, not the tinted Badge component: a 10%-opacity background over a
               photograph is unreadable, and these sit on whatever the user uploaded.
             */}
             <div className="flex flex-wrap items-center gap-2">
               {relationship.matched ? (
-                <span className="rounded-pill bg-success px-2.5 py-1 text-xs font-medium text-white">
+                <span className="inline-flex items-center gap-1 rounded-pill bg-success px-2.5 py-1 text-[11px] font-semibold text-white">
+                  <CheckIcon size={12} strokeWidth={2.6} />
                   Matched
                 </span>
               ) : null}
               {profile.photoVerified ? (
-                <span className="rounded-pill bg-white px-2.5 py-1 text-xs font-medium text-ink">
-                  ✓ Verified
+                <span className="inline-flex items-center gap-1 rounded-pill bg-white px-2.5 py-1 text-[11px] font-semibold text-ink">
+                  <CheckIcon size={12} strokeWidth={2.6} />
+                  Verified
                 </span>
               ) : null}
               {profile.recentlyActive ? (
-                <span className="inline-flex items-center gap-1.5 rounded-pill bg-black/45 px-2.5 py-1 text-xs text-white backdrop-blur-sm">
+                <span className="glass-dark inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11px] font-semibold text-white ring-1 ring-inset ring-white/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-success" />
                   Active recently
                 </span>
               ) : null}
             </div>
 
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-              {profile.displayName} <span className="font-normal opacity-90">{profile.age}</span>
+            <h1 className="mt-3 font-display text-[36px] font-semibold leading-none tracking-[-0.025em] text-white">
+              {profile.displayName}
+              <span className="font-sans text-[25px] font-medium text-white/75">
+                {' '}
+                {profile.age}
+              </span>
             </h1>
 
-            <p className="mt-1 text-sm text-white/80">
+            <p className="mt-2 text-[13px] font-medium text-white/75">
               {[profile.jobTitle, profile.city, distance].filter(Boolean).join(' · ')}
             </p>
           </div>
 
+          {/*
+              Bottom right, beside the name rather than floating over the middle of the
+              photo. It is a flex sibling of the name block, so a long job title shortens
+              itself instead of sliding under the button.
+            */}
           {heroPhoto ? (
             <button
               type="button"
               onClick={() => setCommentPhoto(heroPhoto)}
-              className="absolute right-4 top-20 rounded-pill bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-sm"
+              className="glass-dark mb-1 inline-flex shrink-0 items-center gap-1.5 rounded-pill px-3.5 py-2 text-xs font-semibold text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
             >
-              💬 {heroPhoto.commentCount > 0 ? heroPhoto.commentCount : 'Comment'}
+              <CommentIcon size={15} />
+              {heroPhoto.commentCount > 0 ? heroPhoto.commentCount : 'Comment'}
             </button>
           ) : null}
-        </section>
+        </div>
+      </section>
 
-        <div className="space-y-3 p-4">
-          {/* ---- why you two ---- */}
-          {compatibility || profile.sharedInterests.length > 0 ? (
-            <section className="rounded-card bg-accent-soft p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-semibold text-accent">
+      <div className="space-y-3 p-4">
+        {/* ---- why you two ---- */}
+        {compatibility || profile.sharedInterests.length > 0 ? (
+          <section className="hairline-gradient relative overflow-hidden rounded-card bg-accent-gradient-soft p-5">
+            <div className="flex items-start gap-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl2 bg-accent-gradient text-white shadow-glow">
+                <SparkleIcon size={19} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[17px] font-semibold text-ink">
                   {compatibility ?? 'Worth a look'}
                 </p>
-                {profile.relationship?.matchedAt ? (
-                  <span className="text-xs text-accent/70">Matched</span>
-                ) : null}
-              </div>
-              {profile.sharedInterests.length > 0 ? (
-                <p className="mt-1 text-sm text-ink-muted">
-                  You both like {profile.sharedInterests.slice(0, 3).join(', ')}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
-          {profile.bio ? (
-            <p className="px-1 text-[15px] leading-relaxed text-ink-muted">{profile.bio}</p>
-          ) : null}
-
-          {/* ---- photos and prompts, alternating ---- */}
-          {tail.map((block) =>
-            block.kind === 'prompt' ? (
-              <section key={block.value.id} className="card space-y-1.5 p-4">
-                <p className="text-xs uppercase tracking-wide text-ink-subtle">
-                  {block.value.prompt}
-                </p>
-                <p className="text-[17px] leading-snug text-ink">{block.value.answer}</p>
-              </section>
-            ) : (
-              <section
-                key={block.value.id}
-                className="relative aspect-[4/5] overflow-hidden rounded-card bg-surface-muted"
-              >
-                <Image
-                  src={block.value.url}
-                  alt={profile.displayName}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 640px"
-                  className="object-cover"
-                />
-                {block.value.caption ? (
-                  <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10 text-sm text-white">
-                    {block.value.caption}
+                {profile.sharedInterests.length > 0 ? (
+                  <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
+                    You both like {profile.sharedInterests.slice(0, 3).join(', ')}
                   </p>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => setCommentPhoto(block.value)}
-                  className="absolute bottom-3 right-3 rounded-pill bg-black/45 px-3 py-1.5 text-xs text-white backdrop-blur-sm"
-                >
-                  💬 {block.value.commentCount > 0 ? block.value.commentCount : 'Comment'}
-                </button>
-              </section>
-            ),
-          )}
-
-          <section className="card p-4">
-            <ProfileDetails
-              jobTitle={profile.jobTitle}
-              school={profile.school}
-              hometown={profile.hometown}
-              heightCm={profile.heightCm}
-              religion={profile.religion}
-              zodiacSign={profile.zodiacSign}
-              relationshipIntent={profile.relationshipIntent}
-              drinking={profile.drinking}
-              smoking={profile.smoking}
-              childrenPreference={profile.children}
-              languages={profile.languages}
-              interests={profile.interests}
-              qualities={profile.qualities}
-              sharedInterests={profile.sharedInterests}
-            />
+              </div>
+            </div>
           </section>
-        </div>
+        ) : null}
+
+        {profile.bio ? (
+          <p className="px-1 text-[15px] leading-relaxed text-ink-muted">{profile.bio}</p>
+        ) : null}
+
+        {/* ---- photos and prompts, alternating ---- */}
+        {tail.map((block) =>
+          block.kind === 'prompt' ? (
+            <section key={block.value.id} className="card space-y-2 p-5">
+              <p className="eyebrow">{block.value.prompt}</p>
+              <p className="font-display text-[20px] leading-[1.35] text-ink">
+                {block.value.answer}
+              </p>
+            </section>
+          ) : (
+            <section
+              key={block.value.id}
+              className="relative aspect-[4/5] overflow-hidden rounded-card bg-surface-muted shadow-card"
+            >
+              {/*
+                  unoptimized, matching every other photo in the app. Routing user uploads
+                  through /_next/image makes the Next process re-fetch and re-encode each
+                  one server side; this was the only screen still doing it, and the only
+                  screen whose photos failed to appear.
+                */}
+              <Image
+                src={block.value.url}
+                alt={profile.displayName}
+                fill
+                sizes="(max-width: 768px) 100vw, 640px"
+                className="object-cover"
+                unoptimized
+              />
+              {block.value.caption ? (
+                /* Right padding keeps the caption clear of the comment button below it. */
+                <p className="absolute inset-x-0 bottom-0 bg-photo-scrim py-5 pl-5 pr-32 text-sm font-medium text-white/90">
+                  {block.value.caption}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setCommentPhoto(block.value)}
+                className="glass-dark absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-pill px-3.5 py-2 text-xs font-semibold text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+              >
+                <CommentIcon size={15} />
+                {block.value.commentCount > 0 ? block.value.commentCount : 'Comment'}
+              </button>
+            </section>
+          ),
+        )}
+
+        <section className="card p-5">
+          <ProfileDetails
+            jobTitle={profile.jobTitle}
+            school={profile.school}
+            hometown={profile.hometown}
+            heightCm={profile.heightCm}
+            religion={profile.religion}
+            zodiacSign={profile.zodiacSign}
+            relationshipIntent={profile.relationshipIntent}
+            drinking={profile.drinking}
+            smoking={profile.smoking}
+            childrenPreference={profile.children}
+            languages={profile.languages}
+            interests={profile.interests}
+            qualities={profile.qualities}
+            sharedInterests={profile.sharedInterests}
+          />
+        </section>
       </div>
 
       {/*
@@ -256,11 +301,15 @@ function PublicProfilePage() {
         matched with last week is the kind of thing users notice immediately.
       */}
       {/*
-        Sits above the bottom nav, which is 57px tall at z-40 and would otherwise cover
-        most of this bar. The calc keeps it correct on notched devices, where the nav grows
-        by the safe-area inset. On md+ there is no bottom nav, so it returns to the edge.
+        Sits above the floating bottom nav, which is about 5.5rem tall at z-40 and would
+        otherwise cover this bar. The calc keeps it correct on notched devices, where the
+        nav grows by the safe-area inset.
+
+        On md+ the bottom nav is replaced by the side nav, so the bar drops to the edge -
+        and has to start after the sidebar. Spanning the full window put its buttons 140px
+        to the left of the profile they act on, and laid its background over the sidebar.
       */}
-      <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-surface/95 p-4 backdrop-blur-md md:bottom-0">
+      <div className="glass fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 border-t border-border p-4 md:bottom-0 md:left-[17.5rem]">
         <div className="mx-auto flex max-w-2xl gap-3">
           {relationship.matched ? (
             <Button
@@ -273,8 +322,13 @@ function PublicProfilePage() {
                     : '/matches',
                 )
               }
+              leftIcon={<ChatIcon size={18} />}
             >
-              Message {profile.displayName}
+              {/*
+                A flex child will not shrink below its content unless told to, so a long
+                display name pushed its own label out of the button on a narrow phone.
+              */}
+              <span className="min-w-0 truncate">Message {profile.displayName}</span>
             </Button>
           ) : relationship.likeSent ? (
             <Button size="lg" fullWidth variant="secondary" disabled>
@@ -282,10 +336,23 @@ function PublicProfilePage() {
             </Button>
           ) : (
             <>
-              <Button variant="outline" size="lg" fullWidth disabled={busy} onClick={() => void pass()}>
+              <Button
+                variant="outline"
+                size="lg"
+                fullWidth
+                disabled={busy}
+                onClick={() => void pass()}
+                leftIcon={<CloseIcon size={18} />}
+              >
                 Pass
               </Button>
-              <Button size="lg" fullWidth loading={busy} onClick={() => void like()}>
+              <Button
+                size="lg"
+                fullWidth
+                loading={busy}
+                onClick={() => void like()}
+                leftIcon={<HeartIcon size={18} />}
+              >
                 Like
               </Button>
             </>

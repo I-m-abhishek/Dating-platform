@@ -76,7 +76,7 @@ public class ChatController {
     public ApiResponse<CursorPageResponse<MessageResponse>> messages(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID conversationId,
-            @RequestParam(required = false) Instant before,
+            @RequestParam(required = false) String before,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int limit) {
         return ApiResponse.success(chatService.messages(principal.getId(), conversationId, before, limit));
     }

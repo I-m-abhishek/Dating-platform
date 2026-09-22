@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Chip } from '@/components/ui/Chip';
 import { FullPageLoader } from '@/components/ui/FullPageLoader';
+import { Spinner } from '@/components/ui/Spinner';
+import { CloseIcon, PlusIcon, StarIcon } from '@/components/ui/icons';
 import { useMyProfile, usePhotos, useReferenceData, useUpdateProfile } from '@/lib/hooks/useProfile';
 import { profileApi } from '@/lib/api/endpoints';
 import { useUiStore } from '@/lib/stores/uiStore';
@@ -79,7 +81,7 @@ function EditProfilePage() {
     setQualityIds(profile.qualities.map((tag) => tag.id));
   }, [profileQuery.data]);
 
-  if (profileQuery.isPending) return <FullPageLoader />;
+  if (profileQuery.isPending) return <FullPageLoader label="Loading your profile" />;
 
   const toggle = (list: string[], setList: (next: string[]) => void, id: string, max: number) => {
     if (list.includes(id)) {
@@ -131,26 +133,27 @@ function EditProfilePage() {
         }
       />
 
-      <div className="space-y-8 p-4 pb-24">
+      <div className="space-y-9 p-4 pb-8">
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Photos</h2>
-          <div className="grid grid-cols-3 gap-2">
+          <h2 className="eyebrow">Photos</h2>
+          <div className="grid grid-cols-3 gap-2.5">
             {photos.map((photo) => (
               <div
                 key={photo.id}
-                className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-surface-muted"
+                className="group relative aspect-[3/4] animate-scale-in overflow-hidden rounded-xl2 bg-surface-muted shadow-card"
               >
                 <Image src={photo.url} alt="" fill className="object-cover" unoptimized />
                 <button
                   type="button"
                   onClick={() => remove(photo.id)}
                   aria-label="Remove photo"
-                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
+                  className="glass-dark absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-110 hover:text-danger active:scale-95"
                 >
-                  ×
+                  <CloseIcon size={14} />
                 </button>
                 {photo.primaryPhoto ? (
-                  <span className="absolute bottom-1.5 left-1.5 rounded-pill bg-black/55 px-2 py-0.5 text-[10px] text-white">
+                  <span className="glass-dark absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-pill px-2 py-1 text-[10px] font-semibold text-white ring-1 ring-inset ring-white/20">
+                    <StarIcon size={10} filled />
                     Main
                   </span>
                 ) : null}
@@ -162,9 +165,9 @@ function EditProfilePage() {
                 type="button"
                 onClick={() => fileInput.current?.click()}
                 disabled={isUploading}
-                className="flex aspect-[3/4] items-center justify-center rounded-2xl border-2 border-dashed border-border text-2xl text-ink-subtle hover:border-accent hover:text-accent"
+                className="flex aspect-[3/4] items-center justify-center rounded-xl2 border-2 border-dashed border-border text-ink-subtle transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent"
               >
-                {isUploading ? '…' : '+'}
+                {isUploading ? <Spinner className="h-5 w-5" /> : <PlusIcon size={24} />}
               </button>
             ) : null}
           </div>
@@ -182,8 +185,8 @@ function EditProfilePage() {
           <p className="text-xs text-ink-subtle">The first photo is what people see first.</p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">About you</h2>
+        <section className="space-y-4">
+          <h2 className="eyebrow">About you</h2>
           <Textarea
             label="Bio"
             value={form.bio}
@@ -217,7 +220,7 @@ function EditProfilePage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Looking for</h2>
+          <h2 className="eyebrow">Looking for</h2>
           <div className="flex flex-wrap gap-2">
             {INTENTS.map((value) => (
               <Chip key={value} selected={intent === value} onClick={() => setIntent(value)}>
@@ -227,12 +230,12 @@ function EditProfilePage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-medium text-ink-muted">Lifestyle</h2>
+        <section className="space-y-5">
+          <h2 className="eyebrow">Lifestyle</h2>
           <LifestyleRow label="Drinking" value={drinking} onChange={setDrinking} />
           <LifestyleRow label="Smoking" value={smoking} onChange={setSmoking} />
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-ink-subtle">Children</p>
+          <div className="space-y-2.5">
+            <p className="eyebrow">Children</p>
             <div className="flex flex-wrap gap-2">
               {CHILDREN.map((value) => (
                 <Chip
@@ -250,8 +253,8 @@ function EditProfilePage() {
 
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium text-ink-muted">Interests</h2>
-            <span className="text-xs text-ink-subtle">
+            <h2 className="eyebrow">Interests</h2>
+            <span className="text-xs font-semibold tabular-nums text-accent">
               {interestIds.length}/{MAX_INTERESTS}
             </span>
           </div>
@@ -275,8 +278,8 @@ function EditProfilePage() {
 
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium text-ink-muted">Qualities</h2>
-            <span className="text-xs text-ink-subtle">
+            <h2 className="eyebrow">Qualities</h2>
+            <span className="text-xs font-semibold tabular-nums text-accent">
               {qualityIds.length}/{MAX_QUALITIES}
             </span>
           </div>
@@ -295,7 +298,7 @@ function EditProfilePage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">Prompts</h2>
+          <h2 className="eyebrow">Prompts</h2>
           <p className="text-xs text-ink-subtle">Answer up to three. These start conversations.</p>
           {prompts.slice(0, 8).map((prompt) => {
             const existing = profileQuery.data?.prompts.find((item) => item.promptId === prompt.id);
@@ -328,8 +331,8 @@ function LifestyleRow({
   onChange: (next: LifestyleChoice) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <p className="text-xs uppercase tracking-wide text-ink-subtle">{label}</p>
+    <div className="space-y-2.5">
+      <p className="eyebrow">{label}</p>
       <div className="flex flex-wrap gap-2">
         {LIFESTYLE.map((choice) => (
           <Chip key={choice} size="sm" selected={value === choice} onClick={() => onChange(choice)}>
@@ -354,8 +357,8 @@ function PromptEditor({
   const dirty = answer.trim() !== initial.trim() && answer.trim().length > 0;
 
   return (
-    <div className="card space-y-2 p-3">
-      <p className="text-xs uppercase tracking-wide text-ink-subtle">{text}</p>
+    <div className="card space-y-2.5 p-4">
+      <p className="eyebrow">{text}</p>
       <Textarea
         value={answer}
         counterMax={300}

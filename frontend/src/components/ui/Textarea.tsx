@@ -20,15 +20,23 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   const nearLimit = counterMax !== undefined && length > counterMax * 0.9;
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex items-baseline justify-between">
         {label ? (
-          <label htmlFor={fieldId} className="text-sm font-medium text-ink-muted">
+          <label
+            htmlFor={fieldId}
+            className="text-[13px] font-semibold tracking-[0.01em] text-ink-muted"
+          >
             {label}
           </label>
         ) : null}
         {counterMax !== undefined ? (
-          <span className={cn('text-xs tabular-nums', nearLimit ? 'text-danger' : 'text-ink-subtle')}>
+          <span
+            className={cn(
+              'text-xs font-medium tabular-nums transition-colors',
+              nearLimit ? 'text-danger' : 'text-ink-subtle',
+            )}
+          >
             {length}/{counterMax}
           </span>
         ) : null}
@@ -41,16 +49,19 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         aria-invalid={error ? true : undefined}
         maxLength={counterMax}
         className={cn(
-          'w-full resize-none rounded-2xl border bg-surface px-3.5 py-3 text-[15px] text-ink',
+          'w-full resize-none rounded-xl2 border bg-surface px-4 py-3.5 text-[15px] leading-relaxed text-ink',
+          'transition-[border-color,box-shadow] duration-200',
           'placeholder:text-ink-subtle focus:outline-none',
-          error ? 'border-danger' : 'border-border focus:border-accent',
+          error
+            ? 'border-danger shadow-[0_0_0_4px_rgb(var(--danger)/0.12)]'
+            : 'border-border focus:border-accent focus:shadow-[0_0_0_4px_rgb(var(--accent)/0.13)]',
           className,
         )}
         {...props}
       />
 
       {error ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-[13px] font-medium text-danger">
           {error}
         </p>
       ) : null}

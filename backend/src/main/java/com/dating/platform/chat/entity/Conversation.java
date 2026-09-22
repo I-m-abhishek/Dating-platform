@@ -82,6 +82,34 @@ public class Conversation extends BaseUuidEntity {
     @Builder.Default
     private int unreadForUserB = 0;
 
+    /**
+     * How far each participant has read.
+     *
+     * <p>One updatable column per side, instead of a read flag on every message row.
+     * Marking a long conversation read used to be an UPDATE over every unread message;
+     * it is now a single timestamp write, and "has the peer seen this message" becomes a
+     * comparison at read time.
+     */
+    @Column(name = "user_a_last_read_at")
+    private Instant userALastReadAt;
+
+    @Column(name = "user_b_last_read_at")
+    private Instant userBLastReadAt;
+
+    public Instant lastReadAtFor(UUID userId) {
+        return userAId.equals(userId) ? userALastReadAt : userBLastReadAt;
+    }
+
+    public void markReadUpTo(UUID userId, Instant moment) {
+        if (userAId.equals(userId)) {
+            if (userALastReadAt == null || userALastReadAt.isBefore(moment)) {
+                userALastReadAt = moment;
+            }
+        } else if (userBLastReadAt == null || userBLastReadAt.isBefore(moment)) {
+            userBLastReadAt = moment;
+        }
+    }
+
     public UUID otherParticipant(UUID userId) {
         return userAId.equals(userId) ? userBId : userAId;
     }

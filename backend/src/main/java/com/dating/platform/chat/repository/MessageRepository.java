@@ -25,15 +25,27 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
      * the near future. That keeps the parameter non-null, which avoids the
      * "could not determine type" trap of a nullable comparison parameter in JPQL.
      */
+    /**
+     * One page of history, newest first.
+     *
+     * <p>The cursor is the pair {@code (createdAt, id)}, not the timestamp alone. Two
+     * messages can share a millisecond - two people answering at once, or a burst from one
+     * of them - and with only {@code createdAt < :before} that tie makes the page boundary
+     * ambiguous: whichever of the two the database happens to order second is either
+     * returned twice or skipped entirely. Comparing the id as a tiebreaker makes the order
+     * total, so every message appears exactly once across the pages.
+     */
     @EntityGraph(attributePaths = "attachments")
     @Query("""
             select m from Message m
             where m.conversationId = :conversationId
-              and m.createdAt < :before
-            order by m.createdAt desc
+              and (m.createdAt < :before
+                   or (m.createdAt = :before and m.id < :beforeId))
+            order by m.createdAt desc, m.id desc
             """)
     List<Message> findPage(@Param("conversationId") UUID conversationId,
                            @Param("before") Instant before,
+                           @Param("beforeId") UUID beforeId,
                            Pageable pageable);
 
     @EntityGraph(attributePaths = "attachments")
@@ -43,14 +55,12 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     Optional<Message> findFirstByClientMessageIdAndSenderId(String clientMessageId, UUID senderId);
 
-    @Modifying
-    @Query("""
-            update Message m set m.readAt = :now
-            where m.conversationId = :conversationId
-              and m.senderId <> :readerId
-              and m.readAt is null
-            """)
-    int markRead(@Param("conversationId") UUID conversationId,
-                 @Param("readerId") UUID readerId,
-                 @Param("now") Instant now);
+    /**
+     * Newest message in the conversation not sent by this user.
+     *
+     * <p>Used to set the reader's watermark. Replaces an UPDATE across every unread row
+     * with one read and one column write on the conversation.
+     */
+    Optional<Message> findFirstByConversationIdAndSenderIdNotOrderByCreatedAtDesc(
+            UUID conversationId, UUID senderId);
 }

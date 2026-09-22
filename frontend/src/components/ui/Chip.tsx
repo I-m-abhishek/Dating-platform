@@ -15,17 +15,24 @@ export interface ChipProps {
 /** The interest / quality pill. Renders as a button only when it is interactive. */
 export function Chip({ children, selected, onClick, icon, size = 'md', className }: ChipProps) {
   const classes = cn(
-    'inline-flex items-center gap-1.5 rounded-pill border transition-colors',
-    size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
+    'inline-flex items-center gap-1.5 rounded-pill border font-medium',
+    'transition-[background-color,border-color,color,transform,box-shadow] duration-200 ease-snap',
+    size === 'sm' ? 'px-3 py-1 text-xs' : 'px-4 py-2 text-[13px]',
     selected
-      ? 'border-accent bg-accent-soft text-accent'
+      ? 'border-transparent bg-accent-gradient text-white shadow-[0_5px_16px_-8px_rgb(var(--accent)/0.95)]'
       : 'border-border bg-surface text-ink-muted',
-    onClick && 'cursor-pointer hover:border-ink-subtle',
+    onClick && 'cursor-pointer active:scale-95',
+    onClick && !selected && 'hover:border-accent/45 hover:bg-accent-soft hover:text-ink',
     className,
   );
 
   if (!onClick) {
-    return <span className={classes}>{icon}{children}</span>;
+    return (
+      <span className={classes}>
+        {icon}
+        {children}
+      </span>
+    );
   }
   return (
     <button type="button" onClick={onClick} aria-pressed={selected} className={classes}>

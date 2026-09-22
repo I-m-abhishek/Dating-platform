@@ -5,39 +5,65 @@
 /*
  * Design tokens.
  *
- * One accent, three ink levels, two surfaces. Everything else is spacing and type.
- * Dark mode swaps the same names, so no component ever writes a dark: variant for colour.
+ * Two accents that travel together - a warm rose and a cool violet - plus a gold reserved
+ * for anything premium. Everything else is ink, surface and space. Dark mode swaps the same
+ * names, so no component ever writes a dark: variant for colour.
  */
 @layer base {
   :root {
-    --bg: 250 250 249;
+    --bg: 252 251 250;
+    --bg-deep: 245 242 240;
     --surface: 255 255 255;
-    --surface-muted: 245 244 242;
-    --border: 231 229 226;
-    --ink: 28 26 24;
-    --ink-muted: 91 87 82;
-    --ink-subtle: 143 138 131;
-    --accent: 209 74 90;
-    --accent-soft: 253 240 241;
+    --surface-muted: 246 244 243;
+    --surface-raised: 255 255 255;
+    --border: 232 228 225;
+    --border-strong: 214 209 205;
+    --ink: 26 22 27;
+    --ink-muted: 92 85 96;
+    --ink-subtle: 143 135 146;
+
+    --accent: 244 63 94;
+    --accent-2: 168 85 247;
+    --accent-3: 251 146 60;
+    --accent-soft: 255 241 243;
     --accent-ink: 255 255 255;
-    --success: 42 141 96;
-    --danger: 194 63 57;
-    --font-sans: ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --gold: 217 160 74;
+
+    --success: 22 150 110;
+    --danger: 219 68 62;
+
+    /*
+     * Deliberately absent from .dark. Surfaces that are dark by design - the sign-in hero,
+     * the call screen - need a value that does NOT invert with the theme, or their white
+     * text lands on a white background the moment dark mode is on.
+     */
+    --canvas-dark: 20 16 26;
+
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Fraunces', 'Iowan Old Style', Georgia, ui-serif, serif;
   }
 
   .dark {
-    --bg: 18 17 16;
-    --surface: 28 26 25;
-    --surface-muted: 38 36 34;
-    --border: 56 53 50;
-    --ink: 245 244 242;
-    --ink-muted: 175 170 164;
-    --ink-subtle: 124 119 113;
-    --accent: 226 98 112;
-    --accent-soft: 56 30 34;
-    --accent-ink: 255 255 255;
-    --success: 78 176 130;
-    --danger: 224 106 100;
+    --bg: 13 11 16;
+    --bg-deep: 9 8 11;
+    --surface: 23 20 28;
+    --surface-muted: 33 29 40;
+    --surface-raised: 29 25 35;
+    --border: 48 42 57;
+    --border-strong: 66 58 78;
+    --ink: 245 243 248;
+    --ink-muted: 178 171 189;
+    --ink-subtle: 126 119 137;
+
+    --accent: 251 113 133;
+    --accent-2: 192 132 252;
+    --accent-3: 251 170 100;
+    --accent-soft: 52 26 36;
+    --accent-ink: 26 10 14;
+    --gold: 229 186 116;
+
+    --success: 62 189 140;
+    --danger: 240 113 106;
   }
 
   * {
@@ -46,12 +72,25 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-bg text-ink font-sans antialiased;
     /* The app is a single scroll surface; inner panes manage their own overflow. */
     overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background-color: rgb(var(--accent) / 0.22);
+    color: rgb(var(--ink));
   }
 
   /* Visible focus, always. Removing outlines makes the app unusable by keyboard. */
@@ -63,14 +102,185 @@
     width: 10px;
     height: 10px;
   }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-border;
+    @apply rounded-full;
+    background-color: rgb(var(--border-strong) / 0.7);
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--ink-subtle) / 0.6);
+    background-clip: content-box;
+  }
+
+  /* The stock range input looks like a 2009 form control; this one matches the buttons. */
+  input[type='range'] {
+    @apply h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-muted;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    @apply h-5 w-5 appearance-none rounded-full border-2 border-surface;
+    background-image: linear-gradient(140deg, rgb(var(--accent)), rgb(var(--accent-2)));
+    box-shadow: 0 2px 10px -2px rgb(var(--accent) / 0.8);
+    transition: transform 140ms ease;
+  }
+  input[type='range']::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+  }
+  input[type='range']::-moz-range-thumb {
+    @apply h-5 w-5 rounded-full border-2 border-surface bg-accent;
   }
 }
 
 @layer components {
+  /* ---- Surfaces ------------------------------------------------------- */
+
   .card {
-    @apply rounded-card border border-border bg-surface shadow-card;
+    @apply relative rounded-card border border-border bg-surface shadow-card;
+  }
+
+  /* A card that answers the pointer. Used for anything clickable in a grid. */
+  .card-interactive {
+    @apply card transition-[transform,box-shadow,border-color] duration-300;
+  }
+  .card-interactive:hover {
+    @apply -translate-y-0.5 border-border-strong shadow-lift;
+  }
+
+  /* Translucent chrome - nav bars, headers, floating controls. */
+  .glass {
+    background-color: rgb(var(--surface) / 0.72);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  }
+
+  /* The same idea over a photo, where the backdrop is an image rather than the page. */
+  .glass-dark {
+    background-color: rgb(0 0 0 / 0.42);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  }
+
+  /*
+   * A one-pixel gradient edge. Cheaper than a border image and it survives rounded corners,
+   * which is what gives the premium surfaces their lit rim.
+   */
+  .hairline-gradient {
+    position: relative;
+  }
+  .hairline-gradient::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      140deg,
+      rgb(var(--accent) / 0.55),
+      rgb(var(--accent-2) / 0.35),
+      transparent 60%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ---- Type ----------------------------------------------------------- */
+
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(105deg, rgb(var(--accent)), rgb(var(--accent-2)) 70%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle;
+  }
+
+  /* ---- Decoration ------------------------------------------------------ */
+
+  /*
+   * The ambient wash behind the app. Fixed, non-interactive and low contrast; it gives the
+   * flat surfaces something to sit on without competing with a single photo.
+   */
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .aurora::before,
+  .aurora::after {
+    content: '';
+    position: absolute;
+    /*
+     * Capped against the viewport as well as in rem. At a fixed 46rem the two blobs cover a
+     * phone screen end to end, which stops being an ambient wash and starts being a pink
+     * page.
+     */
+    width: min(46rem, 95vw);
+    height: min(46rem, 95vw);
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: 0.32;
+    will-change: transform;
+  }
+  .aurora::before {
+    top: -20%;
+    left: -30%;
+    background: radial-gradient(circle, rgb(var(--accent) / 0.4), transparent 68%);
+    animation: aurora-drift 26s ease-in-out infinite alternate;
+  }
+  .aurora::after {
+    bottom: -18%;
+    right: -30%;
+    background: radial-gradient(circle, rgb(var(--accent-2) / 0.32), transparent 68%);
+    animation: aurora-drift 32s ease-in-out infinite alternate-reverse;
+  }
+  .dark .aurora::before,
+  .dark .aurora::after {
+    opacity: 0.28;
+  }
+
+  @media (min-width: 768px) {
+    .aurora::before,
+    .aurora::after {
+      opacity: 0.4;
+    }
+  }
+
+  /* The sweep of light that crosses a primary button on hover. */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .sheen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%) skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.3), transparent);
+    transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .sheen:hover::before {
+    transform: translateX(120%) skewX(-18deg);
   }
 
   .hide-scrollbar {
@@ -78,6 +288,24 @@
   }
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Fades the end of a horizontal rail so it reads as "there is more to the right". */
+  .fade-edge-x {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 18px,
+      #000 calc(100% - 26px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 18px,
+      #000 calc(100% - 26px),
+      transparent
+    );
   }
 
   /*
@@ -91,6 +319,32 @@
     filter: blur(18px) saturate(0.7);
     transform: scale(1.06);
   }
+
+  /* Staggered entrance for lists and grids. The index is passed inline as --i. */
+  .stagger {
+    animation: rise-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6rem, 4rem, 0) scale(1.18);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -100,5 +354,16 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    /*
+     * The delay has to go too, not just the duration. A staggered list animates to opacity
+     * 1 instantly but would still sit invisible for the length of its delay.
+     */
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
+  }
+  .aurora::before,
+  .aurora::after {
+    animation: none !important;
   }
 }

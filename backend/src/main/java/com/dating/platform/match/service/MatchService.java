@@ -19,6 +19,7 @@ import com.dating.platform.user.entity.User;
 import com.dating.platform.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -78,7 +79,28 @@ public class MatchService {
         match.setCompatibilityScore(score);
         match.setHighlights(highlights == null || highlights.isEmpty() ? null : String.join("|", highlights));
         match.setLastInteractionAt(Instant.now());
-        match = matchRepository.save(match);
+
+        /*
+         * The simultaneous mutual like.
+         *
+         * A and B like each other in the same instant on two threads. Both ran findByPair
+         * above and both saw nothing, because under READ COMMITTED neither can see the
+         * other's uncommitted row. Both now insert.
+         *
+         * uk_matches_pair decides it: the canonical (userA, userB) ordering means both
+         * threads are inserting the SAME row, so exactly one wins and the other gets a
+         * duplicate-key violation. Catching it and reading the winner's row is what turns a
+         * 500 for one of the two users into both of them seeing the same match.
+         *
+         * flush() forces the INSERT here rather than at commit, so the violation surfaces
+         * inside this try instead of escaping the method as a commit-time exception.
+         */
+        try {
+            match = matchRepository.saveAndFlush(match);
+        } catch (DataIntegrityViolationException duplicate) {
+            log.debug("Lost the insert race for pair {} / {} - reading the winning row", userOne, userTwo);
+            return matchRepository.findByPair(userOne, userTwo);
+        }
 
         Conversation conversation = conversationRepository.save(Conversation.builder()
                 .matchId(match.getId())
@@ -98,6 +120,19 @@ public class MatchService {
         Page<Match> matches = matchRepository.findAllForUser(userId, MatchStatus.ACTIVE, pageable);
         return PageResponse.of(toResponses(userId, matches.getContent()),
                 matches.getNumber(), matches.getSize(), matches.getTotalElements());
+    }
+
+    /**
+     * The match between two people, as one of them sees it.
+     *
+     * <p>Used when replaying an idempotent like: the original request already created the
+     * match, so the retry has to return the same payload rather than a null.
+     */
+    @Transactional(readOnly = true)
+    public Optional<MatchResponse> findMatchFor(UUID viewerId, UUID otherUserId) {
+        return matchRepository.findByPair(viewerId, otherUserId)
+                .map(match -> toResponses(viewerId, List.of(match)))
+                .flatMap(responses -> responses.stream().findFirst());
     }
 
     @Transactional(readOnly = true)

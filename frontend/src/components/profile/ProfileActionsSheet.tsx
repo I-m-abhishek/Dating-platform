@@ -10,6 +10,7 @@ import { matchApi, safetyApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { messageOf } from '@/lib/api/errors';
+import { CloseIcon, LockIcon, ShieldCheckIcon } from '@/components/ui/icons';
 import { ActionRow, ConfirmPanel } from './ProfileActionsParts';
 
 const REPORT_REASONS = [
@@ -85,11 +86,13 @@ export function ProfileActionsSheet({
     <Sheet open={open} onClose={close} size="tall">
       {view === 'menu' ? (
         <div className="space-y-1">
-          <h2 className="px-1 pb-2 text-base font-semibold text-ink">{displayName}</h2>
+          <h2 className="px-1 pb-3 font-display text-[21px] font-semibold tracking-[-0.02em] text-ink">
+            {displayName}
+          </h2>
 
           {matchId ? (
             <ActionRow
-              icon="✕"
+              icon={<CloseIcon size={18} />}
               label="Unmatch"
               description="Removes the match and closes your chat"
               tone="danger"
@@ -98,7 +101,7 @@ export function ProfileActionsSheet({
           ) : null}
 
           <ActionRow
-            icon="⊘"
+            icon={<LockIcon size={18} />}
             label="Block"
             description="You will not see each other anywhere"
             tone="danger"
@@ -106,13 +109,13 @@ export function ProfileActionsSheet({
           />
 
           <ActionRow
-            icon="⚑"
+            icon={<ShieldCheckIcon size={18} />}
             label="Report"
             description="Send this to our safety team"
             onClick={() => setView('report')}
           />
 
-          <Button variant="ghost" fullWidth onClick={close} className="mt-3">
+          <Button variant="ghost" size="lg" fullWidth onClick={close} className="mt-3">
             Cancel
           </Button>
         </div>
@@ -145,8 +148,10 @@ export function ProfileActionsSheet({
       {view === 'report' ? (
         <div className="space-y-4">
           <div>
-            <h2 className="text-base font-semibold text-ink">Report {displayName}</h2>
-            <p className="mt-1 text-sm text-ink-muted">
+            <h2 className="font-display text-[21px] font-semibold tracking-[-0.02em] text-ink">
+              Report {displayName}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
               Reports are confidential - they are never shown to the person reported.
             </p>
           </div>
@@ -160,8 +165,8 @@ export function ProfileActionsSheet({
                 aria-pressed={reason === option.value}
                 className={
                   reason === option.value
-                    ? 'w-full rounded-2xl border border-accent bg-accent-soft px-4 py-3 text-left text-sm text-accent'
-                    : 'w-full rounded-2xl border border-border px-4 py-3 text-left text-sm text-ink-muted hover:bg-surface-muted'
+                    ? 'w-full rounded-xl2 border border-accent bg-accent-soft px-4 py-3.5 text-left text-sm font-semibold text-accent'
+                    : 'w-full rounded-xl2 border border-border px-4 py-3.5 text-left text-sm text-ink-muted transition-colors hover:border-border-strong hover:bg-surface-muted'
                 }
               >
                 {option.label}
@@ -178,11 +183,12 @@ export function ProfileActionsSheet({
           />
 
           <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => setView('menu')}>
+            <Button variant="ghost" size="lg" fullWidth onClick={() => setView('menu')}>
               Back
             </Button>
             <Button
               variant="danger"
+              size="lg"
               fullWidth
               loading={busy}
               disabled={!reason}

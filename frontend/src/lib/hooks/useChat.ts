@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/api/queryKeys';
 import { destinations, socket } from '@/lib/ws/socket';
 import { usePaywall } from './usePaywall';
 import type { Conversation, CursorPageResponse, Message } from '@/lib/api/types';
+import { randomId } from '@/lib/utils/id';
 
 export function useConversations(page = 0, size = 20) {
   return useQuery({
@@ -147,7 +148,7 @@ export function useConversation(conversationId: string) {
 
   const send = useCallback(
     async (body: string, attachmentIds: string[] = []) => {
-      const clientMessageId = crypto.randomUUID();
+      const clientMessageId = randomId();
       const optimistic: Message = {
         id: clientMessageId,
         conversationId,

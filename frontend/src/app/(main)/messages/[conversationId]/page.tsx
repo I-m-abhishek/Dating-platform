@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { CallOverlay } from '@/components/chat/CallOverlay';
+import { PhoneIcon } from '@/components/ui/icons';
 import { useConversation } from '@/lib/hooks/useChat';
 import { useCall } from '@/lib/hooks/useCall';
 import { useEntitlements } from '@/lib/hooks/useEntitlements';
@@ -61,31 +62,36 @@ function ConversationPage() {
         showBack
         title={participant?.displayName ?? 'Chat'}
         subtitle={otherIsTyping ? 'typing…' : participant?.recentlyActive ? 'Active recently' : undefined}
-        action={
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Start a voice call"
-              onClick={() => void call.start('VOICE')}
-              disabled={conversation?.status !== 'ACTIVE'}
+        leading={
+          participant?.userId ? (
+            <Link
+              href={`/u/${participant.userId}`}
+              aria-label={`View ${participant.displayName} profile`}
+              className="rounded-full transition-transform duration-200 ease-snap hover:scale-105"
             >
-              ☎
-            </Button>
-            {participant?.userId ? (
-              <Link
-                href={`/u/${participant.userId}`}
-                aria-label={`View ${participant.displayName} profile`}
-                className="rounded-full"
-              >
-                <Avatar src={participant.primaryPhotoUrl} name={participant.displayName} size={32} />
-              </Link>
-            ) : null}
-          </div>
+              <Avatar
+                src={participant.primaryPhotoUrl}
+                name={participant.displayName}
+                size={38}
+                online={participant.recentlyActive}
+              />
+            </Link>
+          ) : null
+        }
+        action={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Start a voice call"
+            onClick={() => void call.start('VOICE')}
+            disabled={conversation?.status !== 'ACTIVE'}
+          >
+            <PhoneIcon size={19} />
+          </Button>
         }
       />
 
-      <div className="flex flex-1 flex-col-reverse overflow-y-auto px-4 py-3">
+      <div className="flex flex-1 flex-col-reverse overflow-y-auto px-4 py-4">
         {historyQuery.isPending ? (
           <Skeleton.List rows={5} />
         ) : messages.length === 0 ? (
@@ -95,7 +101,29 @@ function ConversationPage() {
           />
         ) : (
           <>
-            <ul className="flex flex-col-reverse gap-2">
+            <ul className="flex flex-col-reverse gap-2.5">
+              {/*
+                First child of a reversed column, so it renders at the visual bottom - right
+                where the message being typed is about to appear.
+              */}
+              {otherIsTyping ? (
+                <li className="flex justify-start pt-1">
+                  <span
+                    className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-surface-muted px-4 py-3"
+                    aria-label={`${participant?.displayName ?? 'They'} are typing`}
+                  >
+                    {[0, 1, 2].map((dot) => (
+                      <span
+                        key={dot}
+                        aria-hidden
+                        className="h-1.5 w-1.5 animate-typing-dot rounded-full bg-ink-subtle"
+                        style={{ animationDelay: `${dot * 0.15}s` }}
+                      />
+                    ))}
+                  </span>
+                </li>
+              ) : null}
+
               {messages.map((message) => (
                 <MessageBubble key={message.id} message={message} showReadReceipt={readReceipts} />
               ))}

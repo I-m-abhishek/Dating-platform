@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    The same two-hearts mark as LogoMark, with literal colours: a standalone icon file is
+    served outside the document, so it cannot read the theme's CSS variables.
+  -->
+  <defs>
+    <linearGradient id="m" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f43f5e" />
+      <stop offset="1" stop-color="#a855f7" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#141019" />
+  <path
+    d="M12.4 25.5S3.6 19.9 3.6 13.9a5 5 0 0 1 8.8-3.1 5 5 0 0 1 8.8 3.1c0 6-8.8 11.6-8.8 11.6Z"
+    fill="url(#m)"
+    opacity="0.95"
+  />
+  <path
+    d="M21.2 24s-3.2-2.1-4.9-4.5c2.5-2.3 4.7-5.3 4.7-9.3a5 5 0 0 0-.6-2.4 5 5 0 0 1 7.8 4.1c0 6-7 12.1-7 12.1Z"
+    fill="url(#m)"
+    opacity="0.6"
+  />
+</svg>

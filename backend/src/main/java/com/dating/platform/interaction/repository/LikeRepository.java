@@ -21,6 +21,9 @@ public interface LikeRepository extends JpaRepository<Like, UUID> {
 
     Optional<Like> findBySenderIdAndReceiverId(UUID senderId, UUID receiverId);
 
+    /** Idempotency lookup: has this exact client request already been applied? */
+    Optional<Like> findBySenderIdAndClientLikeId(UUID senderId, String clientLikeId);
+
     boolean existsBySenderIdAndReceiverId(UUID senderId, UUID receiverId);
 
     /** The Likes You tab: pending inbound likes, newest and SUPER first. */

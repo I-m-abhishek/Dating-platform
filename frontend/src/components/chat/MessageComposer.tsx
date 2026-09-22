@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { PlusIcon, SendIcon } from '@/components/ui/icons';
 import { chatApi } from '@/lib/api/endpoints';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { messageOf } from '@/lib/api/errors';
@@ -72,8 +73,8 @@ export function MessageComposer({ sendingState, onSend, onTyping, disabled }: Me
 
   if (blocked) {
     return (
-      <div className="border-t border-border bg-surface px-4 py-4 text-center">
-        <p className="text-sm text-ink-muted">
+      <div className="glass border-t border-border px-6 py-5 text-center">
+        <p className="mx-auto max-w-sm text-sm leading-relaxed text-ink-muted">
           {sendingState.message ?? 'You cannot send messages in this conversation.'}
         </p>
       </div>
@@ -81,16 +82,20 @@ export function MessageComposer({ sendingState, onSend, onTyping, disabled }: Me
   }
 
   return (
-    <form onSubmit={submit} className="border-t border-border bg-surface px-3 py-3">
+    <form
+      onSubmit={submit}
+      className="glass border-t border-border px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3"
+    >
       {sendingState.remainingOpeners >= 0 ? (
-        <p className="mb-2 px-1 text-xs text-ink-subtle">
+        <p className="mb-2 flex items-center gap-1.5 px-1.5 text-[11.5px] font-medium text-ink-subtle">
+          <span aria-hidden className="h-1 w-1 rounded-full bg-accent" />
           {sendingState.remainingOpeners} more message
           {sendingState.remainingOpeners === 1 ? '' : 's'} until they reply
         </p>
       ) : null}
 
       {attachmentIds.length > 0 ? (
-        <p className="mb-2 px-1 text-xs text-accent">
+        <p className="mb-2 px-1.5 text-[11.5px] font-semibold text-accent">
           {attachmentIds.length} attachment{attachmentIds.length === 1 ? '' : 's'} ready
         </p>
       ) : null}
@@ -105,13 +110,13 @@ export function MessageComposer({ sendingState, onSend, onTyping, disabled }: Me
         />
         <Button
           type="button"
-          variant="ghost"
+          variant="secondary"
           size="icon"
           aria-label="Add an attachment"
           loading={uploading}
           onClick={() => fileInput.current?.click()}
         >
-          +
+          <PlusIcon size={19} />
         </Button>
 
         <textarea
@@ -126,11 +131,11 @@ export function MessageComposer({ sendingState, onSend, onTyping, disabled }: Me
           placeholder="Message"
           aria-label="Message"
           maxLength={2000}
-          className="max-h-32 min-h-[44px] flex-1 resize-none rounded-2xl border border-border bg-bg px-3.5 py-2.5 text-[15px] text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none"
+          className="max-h-32 min-h-[44px] flex-1 resize-none rounded-2xl border border-border bg-surface px-4 py-3 text-[15px] leading-snug text-ink transition-[border-color,box-shadow] placeholder:text-ink-subtle focus:border-accent focus:shadow-[0_0_0_4px_rgb(var(--accent)/0.13)] focus:outline-none"
         />
 
         <Button type="submit" size="icon" aria-label="Send" loading={sending} disabled={!canSubmit}>
-          ↑
+          <SendIcon size={18} />
         </Button>
       </div>
     </form>
