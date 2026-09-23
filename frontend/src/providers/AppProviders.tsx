@@ -3,9 +3,17 @@
 import type { ReactNode } from 'react';
 import { QueryProvider } from './QueryProvider';
 import { SessionProvider } from './SessionProvider';
+import { CallProvider } from './CallProvider';
 import { ThemeProvider } from './ThemeProvider';
 import { Toaster } from '@/components/ui/Toaster';
 import { PaywallSheet } from '@/components/paywall/PaywallSheet';
+import { useLiveNotifications } from '@/lib/hooks/useNotifications';
+
+/** Listens for notifications on every screen, not just one that happens to ask. */
+function LiveNotifications() {
+  useLiveNotifications();
+  return null;
+}
 
 /**
  * Single mount point for everything global.
@@ -19,9 +27,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ThemeProvider>
       <QueryProvider>
         <SessionProvider>
-          {children}
-          <Toaster />
-          <PaywallSheet />
+          <CallProvider>
+            {children}
+            <LiveNotifications />
+            <Toaster />
+            <PaywallSheet />
+          </CallProvider>
         </SessionProvider>
       </QueryProvider>
     </ThemeProvider>

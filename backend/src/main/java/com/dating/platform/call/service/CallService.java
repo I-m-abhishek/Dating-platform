@@ -177,20 +177,23 @@ public class CallService {
                 Message.MessageType.CALL_SUMMARY, summaryOf(session));
 
         if (status == CallStatus.MISSED) {
+            boolean video = session.getType() == CallSession.CallType.VIDEO;
             notificationService.notifyAsync(session.getCalleeId(), NotificationType.MISSED_CALL,
-                    "Missed call", "You missed a call", session.getCallerId(),
+                    video ? "Missed video call" : "Missed call",
+                    video ? "You missed a video call" : "You missed a call", session.getCallerId(),
                     "CALL", session.getId(), null);
         }
         return response;
     }
 
     private String summaryOf(CallSession session) {
+        String label = session.getType() == CallSession.CallType.VIDEO ? "Video call" : "Call";
         return switch (session.getStatus()) {
             case ENDED -> session.getDurationSeconds() == null
-                    ? "Call ended" : "Call - " + formatDuration(session.getDurationSeconds());
-            case DECLINED -> "Call declined";
-            case MISSED -> "Missed call";
-            default -> "Call";
+                    ? label + " ended" : label + " - " + formatDuration(session.getDurationSeconds());
+            case DECLINED -> label + " declined";
+            case MISSED -> "Missed " + label.toLowerCase();
+            default -> label;
         };
     }
 

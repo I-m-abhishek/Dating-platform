@@ -59,9 +59,29 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         UUID userId = tokenProvider.userIdFrom(claims);
         Set<String> roles = tokenProvider.rolesFrom(claims);
         UserPrincipal principal = UserPrincipal.of(userId, tokenProvider.emailFrom(claims), null, true, roles);
-        var auth = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-        accessor.setUser(auth);
+        accessor.setUser(new StompAuthentication(principal));
         return message;
+    }
+
+    /**
+     * Names the session by user id rather than email.
+     *
+     * <p>{@code /user/**} destinations are routed by {@link java.security.Principal#getName()},
+     * and every server-side sender ({@code convertAndSendToUser(userId.toString(), ...)})
+     * addresses users by id. The default token would report the email (the
+     * {@code UserDetails} username), so nothing sent to a user queue - notifications,
+     * incoming calls, signalling - would ever reach the socket.
+     */
+    static final class StompAuthentication extends UsernamePasswordAuthenticationToken {
+
+        StompAuthentication(UserPrincipal principal) {
+            super(principal, null, principal.getAuthorities());
+        }
+
+        @Override
+        public String getName() {
+            return ((UserPrincipal) getPrincipal()).getId().toString();
+        }
     }
 
     private String firstHeader(StompHeaderAccessor accessor, String name) {

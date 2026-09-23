@@ -3,15 +3,13 @@
 import Image from 'next/image';
 import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { ChevronRightIcon, CommentIcon, HeartIcon, ImageIcon } from '@/components/ui/icons';
+import { ChevronRightIcon, ImageIcon } from '@/components/ui/icons';
 import type { Photo } from '@/lib/api/types';
 
 export interface PhotoCarouselProps {
   photos: Photo[];
   alt: string;
-  onCommentPhoto?: (photo: Photo) => void;
-  onLikePhoto?: (photo: Photo) => void;
-  /** Rendered over the scrim at the bottom - the name block on a feed card. */
+  /** Rendered over the scrim at the bottom. */
   overlay?: ReactNode;
   aspect?: 'portrait' | 'tall';
   className?: string;
@@ -28,8 +26,6 @@ export interface PhotoCarouselProps {
 export function PhotoCarousel({
   photos,
   alt,
-  onCommentPhoto,
-  onLikePhoto,
   overlay,
   aspect = 'portrait',
   className,
@@ -80,9 +76,7 @@ export function PhotoCarousel({
         unoptimized
       />
 
-      {hasScrim ? (
-        <div aria-hidden className="absolute inset-0 bg-photo-scrim" />
-      ) : null}
+      {hasScrim ? <div aria-hidden className="absolute inset-0 bg-photo-scrim" /> : null}
 
       {photos.length > 1 ? (
         <>
@@ -142,32 +136,6 @@ export function PhotoCarousel({
       ) : null}
 
       {overlay ? <div className="absolute inset-x-0 bottom-0 p-5">{overlay}</div> : null}
-
-      {onCommentPhoto || onLikePhoto ? (
-        <div className="absolute right-3 top-3 flex flex-col gap-2">
-          {onLikePhoto ? (
-            <button
-              type="button"
-              onClick={() => onLikePhoto(photo)}
-              aria-label="Like this photo"
-              className="glass-dark flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-110 hover:text-accent active:scale-95"
-            >
-              <HeartIcon size={18} />
-            </button>
-          ) : null}
-          {onCommentPhoto ? (
-            <button
-              type="button"
-              onClick={() => onCommentPhoto(photo)}
-              aria-label={`Comment on this photo${photo.commentCount > 0 ? `, ${photo.commentCount} so far` : ''}`}
-              className="glass-dark flex h-10 min-w-10 items-center justify-center gap-1 rounded-full px-2.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/20 transition-transform duration-200 ease-snap hover:scale-110 active:scale-95"
-            >
-              <CommentIcon size={17} />
-              {photo.commentCount > 0 ? photo.commentCount : null}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

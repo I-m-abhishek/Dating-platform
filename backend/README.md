@@ -48,7 +48,7 @@ Rules that hold everywhere:
 
 ## Configuration
 
-Everything tunable lives under `app:` in `application.yml` and binds to `AppProperties`.
+Everything tunable lives under the `app.*` keys in `application.properties` and binds to `AppProperties`.
 No `@Value` strings scattered through the code.
 
 | Key | What it controls |
@@ -63,7 +63,7 @@ No `@Value` strings scattered through the code.
 Environment overrides: `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `FRONTEND_ORIGIN`,
 `STORAGE_ROOT`, `SERVER_PORT`.
 
-**`JWT_SECRET` must be set in production.** The default in `application.yml` is a development
+**`JWT_SECRET` must be set in production.** The default in `application.properties` is a development
 placeholder, and the app refuses any secret shorter than 32 bytes.
 
 ## Scheduled jobs

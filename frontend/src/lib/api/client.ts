@@ -6,6 +6,43 @@ import type { ApiResponse } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
+/**
+ * Same-origin mode (empty BASE_URL) is how the app runs over HTTPS on a phone. Media URLs
+ * are stored in the database as absolute http://<backend>/api/v1/media/files/... links,
+ * which an https page refuses to load (mixed content). Rewriting them to a relative path
+ * sends them through the same proxy as every other API call.
+ */
+const MEDIA_PATH = /^https?:\/\/[^/]+(\/api\/v1\/media\/files\/.*)$/;
+
+function sameOriginMedia(_key: string, value: unknown): unknown {
+  if (typeof value === 'string') {
+    const match = MEDIA_PATH.exec(value);
+    if (match) return match[1];
+  }
+  return value;
+}
+
+/** JSON.parse that applies the same-origin media rewrite; shared with the socket. */
+export function parseApiJson(text: string): unknown {
+  return BASE_URL === '' ? JSON.parse(text, sameOriginMedia) : JSON.parse(text);
+}
+
+/** Thrown when a body is not JSON; carries the start of what actually came back. */
+class UnreadableBody extends Error {
+  constructor(readonly snippet: string) {
+    super('Unreadable response body');
+  }
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  try {
+    return parseApiJson(text) as T;
+  } catch {
+    throw new UnreadableBody(text.replace(/\s+/g, ' ').trim().slice(0, 80));
+  }
+}
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
@@ -70,7 +107,9 @@ async function refreshSession(): Promise<boolean> {
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const url = new URL(path.startsWith('http') ? path : `${BASE_URL}${path}`);
+  // An empty BASE_URL means same origin (proxied by the Next rewrite), so resolve against
+  // the page rather than handing URL() a bare path it cannot parse.
+  const url = new URL(path.startsWith('http') ? path : `${BASE_URL}${path}`, window.location.origin);
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -124,10 +163,17 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   let payload: ApiResponse<T>;
   try {
-    payload = (await response.json()) as ApiResponse<T>;
-  } catch {
+    payload = await readJson<ApiResponse<T>>(response);
+  } catch (error) {
+    // Say what came back. "Unreadable" alone left nothing to go on when a proxy, a CORS
+    // rejection (plain-text 403) or a gateway error page answered instead of the API.
+    const snippet = error instanceof UnreadableBody && error.snippet ? `: ${error.snippet}` : '';
+    console.error('Non-JSON API response', response.status, response.url, snippet);
     throw new ApiError(
-      { code: 'INTERNAL_ERROR', message: 'The server returned an unreadable response' },
+      {
+        code: 'INTERNAL_ERROR',
+        message: `The server returned an unreadable response (HTTP ${response.status}${snippet})`,
+      },
       response.status,
     );
   }

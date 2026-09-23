@@ -34,3 +34,7 @@ npm-debug.log*
 
 # Test artifacts
 backend/target/test-storage/
+
+# Local HTTPS certificates for phone testing (frontend/scripts/make-dev-cert.sh)
+frontend/certificates/
+frontend/public/dev-ca.crt

@@ -119,9 +119,11 @@ where the right response is a paywall. The rest are honest answers and the UI sa
 
 ### Scheduling
 
-```yaml
-app.matching.weekly-auto-match-cron: "0 0 9 * * MON"   # Monday 09:00 UTC
-app.matching.daily-auto-match-cron:  "0 0 9 * * *"     # every day 09:00 UTC
+```properties
+# Monday 09:00 UTC
+app.matching.weekly-auto-match-cron=0 0 9 * * MON
+# every day 09:00 UTC
+app.matching.daily-auto-match-cron=0 0 9 * * *
 ```
 
 `AutoMatchScheduler` picks the eligible users and calls `runFor` per user. Each call is its
@@ -161,14 +163,14 @@ your own ex.
 
 ## Tuning
 
-Everything is configuration, not code:
+Everything is configuration, not code (`application.properties`):
 
-```yaml
-app:
-  matching:
-    candidate-pool-size: 400          # hard cap on rows scored per run
-    max-distance-km-default: 80
-    min-compatibility-score: 0.35     # the auto-match bar
+```properties
+# hard cap on rows scored per run
+app.matching.candidate-pool-size=400
+app.matching.max-distance-km-default=80
+# the auto-match bar
+app.matching.min-compatibility-score=0.35
 ```
 
 Weights live in `ScoringWeights.defaults()` as a record, so they can be A/B tested or

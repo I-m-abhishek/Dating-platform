@@ -86,7 +86,9 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         AppProperties.Cors cors = appProperties.cors();
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(cors.allowedOrigins());
+        // Patterns rather than exact origins, so dev entries such as https://*.trycloudflare.com
+        // work. Same list the STOMP endpoint uses, so REST and the socket never disagree.
+        configuration.setAllowedOriginPatterns(cors.allowedOrigins());
         configuration.setAllowedMethods(cors.allowedMethods());
         configuration.setAllowedHeaders(cors.allowedHeaders());
         configuration.setAllowCredentials(cors.allowCredentials());

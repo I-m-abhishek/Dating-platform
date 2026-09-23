@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { compose, withAuth, withErrorBoundary } from '@/hoc';
 import { TopBar } from '@/components/layout/TopBar';
-import { FeedCardView } from '@/components/discovery/FeedCardView';
+import { SwipeDeck } from '@/components/discovery/SwipeDeck';
 import { FilterSheet } from '@/components/discovery/FilterSheet';
 import { PhotoCommentSheet } from '@/components/profile/PhotoCommentSheet';
 import { Button } from '@/components/ui/Button';
@@ -33,7 +33,7 @@ function HomePage() {
 
   // Seed the feed from the saved preferences so the sheet opens showing the real numbers
   // rather than hardcoded defaults. withAuth guarantees the account is loaded by now.
-  const { cards, query, filter, applyFilter, page, setPage, hasMore, like, pass, isActing } = useFeed({
+  const { cards, query, filter, applyFilter, hasMore, like, pass } = useFeed({
     sort: 'RECOMMENDED',
     minAge: account?.preferredMinAge,
     maxAge: account?.preferredMaxAge,
@@ -75,8 +75,22 @@ function HomePage() {
 
   const [commentPhoto, setCommentPhoto] = useState<Photo | null>(null);
 
-  const onLike = async (userId: string, photo?: Photo) => {
-    const result = await like({ targetUserId: userId, targetPhotoId: photo?.id });
+  /*
+   * Swiped people are excluded server-side, so when the deck runs dry the same page simply
+   * returns the next people. Refetch once per loaded batch - never in a loop.
+   */
+  const refilledFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (cards.length > 0 || !hasMore || query.isFetching) return;
+    if (refilledFor.current === query.dataUpdatedAt) return;
+    refilledFor.current = query.dataUpdatedAt;
+    void query.refetch();
+  }, [cards.length, hasMore, query]);
+
+  const onLike = async (userId: string) => {
+    // Failures are already surfaced (paywall or toast) by the hook's onError.
+    const result = await like({ targetUserId: userId }).catch(() => null);
+    if (!result) return;
     if (result.matched) {
       toast({
         title: 'It is a match',
@@ -103,9 +117,9 @@ function HomePage() {
         }
       />
 
-      <div className="space-y-5 p-4">
-        {query.isPending ? (
-          <Skeleton.Feed count={2} />
+      <div className="px-4 pb-4 pt-2">
+        {query.isPending || (cards.length === 0 && hasMore) ? (
+          <Skeleton.Feed count={1} />
         ) : query.isError ? (
           <ErrorState description={messageOf(query.error)} onRetry={() => void query.refetch()} />
         ) : cards.length === 0 ? (
@@ -119,33 +133,12 @@ function HomePage() {
             }
           />
         ) : (
-          <>
-            {cards.map((card, index) => (
-              <div
-                key={card.userId}
-                className="stagger"
-                style={{ '--i': Math.min(index, 6) } as CSSProperties}
-              >
-                <FeedCardView
-                  card={card}
-                  busy={isActing}
-                  onLike={(photo) => void onLike(card.userId, photo)}
-                  onPass={() => void pass(card.userId)}
-                  onCommentPhoto={setCommentPhoto}
-                />
-              </div>
-            ))}
-
-            {hasMore ? (
-              <Button variant="outline" size="lg" fullWidth onClick={() => setPage(page + 1)}>
-                Show me more people
-              </Button>
-            ) : (
-              <p className="py-6 text-center text-sm text-ink-subtle">
-                That is everyone for now. Check back later.
-              </p>
-            )}
-          </>
+          <SwipeDeck
+            cards={cards}
+            onLike={(card) => void onLike(card.userId)}
+            onPass={(card) => void pass(card.userId).catch(() => undefined)}
+            onComment={setCommentPhoto}
+          />
         )}
       </div>
 

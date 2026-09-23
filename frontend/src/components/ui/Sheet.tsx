@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils/cn';
 import { CloseIcon } from './icons';
 
@@ -37,9 +38,14 @@ export function Sheet({ open, onClose, title, description, children, size = 'aut
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
+  /*
+   * Portalled to <body>. Pages render inside <main>, which is its own stacking context
+   * (z-10), so a sheet left in place sat BELOW the bottom nav bar no matter its own z-index
+   * - the nav covered the sheet's bottom buttons.
+   */
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
@@ -85,6 +91,7 @@ export function Sheet({ open, onClose, title, description, children, size = 'aut
 
         <div className={cn(title || description ? 'mt-5' : '')}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

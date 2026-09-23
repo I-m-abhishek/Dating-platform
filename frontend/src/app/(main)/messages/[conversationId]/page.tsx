@@ -11,10 +11,9 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { MessageComposer } from '@/components/chat/MessageComposer';
-import { CallOverlay } from '@/components/chat/CallOverlay';
-import { PhoneIcon } from '@/components/ui/icons';
+import { PhoneIcon, VideoIcon } from '@/components/ui/icons';
 import { useConversation } from '@/lib/hooks/useChat';
-import { useCall } from '@/lib/hooks/useCall';
+import { useCallControls } from '@/providers/CallProvider';
 import { useEntitlements } from '@/lib/hooks/useEntitlements';
 
 /**
@@ -41,7 +40,8 @@ function ConversationPage() {
     otherIsTyping,
   } = useConversation(conversationId);
 
-  const call = useCall(conversationId);
+  // The call itself (and its overlay) lives app-wide so incoming calls ring on any screen.
+  const call = useCallControls();
   const { has } = useEntitlements();
   const readReceipts = has('READ_RECEIPTS');
   const markedRead = useRef(false);
@@ -55,6 +55,7 @@ function ConversationPage() {
   }, [messages.length, markRead]);
 
   const participant = conversation?.participant;
+  const canCall = conversation?.status === 'ACTIVE' && call.phase === 'idle';
 
   return (
     <div className="flex h-[100dvh] flex-col">
@@ -79,15 +80,26 @@ function ConversationPage() {
           ) : null
         }
         action={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Start a voice call"
-            onClick={() => void call.start('VOICE')}
-            disabled={conversation?.status !== 'ACTIVE'}
-          >
-            <PhoneIcon size={19} />
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Start a voice call"
+              onClick={() => void call.start(conversationId, 'VOICE')}
+              disabled={!canCall}
+            >
+              <PhoneIcon size={19} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Start a video call"
+              onClick={() => void call.start(conversationId, 'VIDEO')}
+              disabled={!canCall}
+            >
+              <VideoIcon size={21} />
+            </Button>
+          </div>
         }
       />
 
@@ -154,19 +166,6 @@ function ConversationPage() {
           onTyping={notifyTyping}
         />
       )}
-
-      <CallOverlay
-        phase={call.phase}
-        peerName={participant?.displayName}
-        peerPhotoUrl={participant?.primaryPhotoUrl}
-        elapsed={call.elapsed}
-        muted={call.muted}
-        remoteAudioRef={call.remoteAudioRef}
-        onAccept={() => void call.accept()}
-        onDecline={() => void call.decline()}
-        onHangUp={() => void call.hangUp()}
-        onToggleMute={call.toggleMute}
-      />
     </div>
   );
 }

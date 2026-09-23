@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { destinations, socket } from '@/lib/ws/socket';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { usePaywall } from './usePaywall';
 import type { Conversation, CursorPageResponse, Message } from '@/lib/api/types';
 import { randomId } from '@/lib/utils/id';
@@ -38,6 +39,9 @@ export function useUnreadCount() {
 export function useConversation(conversationId: string) {
   const queryClient = useQueryClient();
   const { handleError } = usePaywall();
+  const myId = useAuthStore((state) => state.account?.id);
+  const myIdRef = useRef(myId);
+  myIdRef.current = myId;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -65,7 +69,15 @@ export function useConversation(conversationId: string) {
     setHasMore(historyQuery.data.hasMore);
   }, [historyQuery.data]);
 
-  const appendIncoming = useCallback((incoming: Message) => {
+  const appendIncoming = useCallback((raw: Message) => {
+    /*
+     * The server broadcasts ONE payload to everyone on the topic, with `mine` computed for
+     * the sender. Re-derive it for whoever is looking, or the receiver renders the other
+     * person's messages as their own and the whole thread collapses onto one side.
+     */
+    const incoming: Message = myIdRef.current
+      ? { ...raw, mine: raw.senderId === myIdRef.current }
+      : raw;
     setMessages((current) => {
       // The sender already has this message optimistically; match on the client id.
       const withoutOptimistic = current.filter(
@@ -85,12 +97,16 @@ export function useConversation(conversationId: string) {
       const event = payload as Record<string, unknown>;
 
       if (event.event === 'TYPING') {
+        // The topic echoes our own typing events back to us.
+        if (event.userId === myIdRef.current) return;
         setTyping(Boolean(event.typing));
         if (typingTimeout.current) clearTimeout(typingTimeout.current);
         typingTimeout.current = setTimeout(() => setTyping(false), 4000);
         return;
       }
       if (event.event === 'READ') {
+        // Only the OTHER person reading marks my messages as read.
+        if (event.readerId === myIdRef.current) return;
         setMessages((current) =>
           current.map((message) =>
             message.mine && !message.readAt ? { ...message, readAt: new Date().toISOString() } : message,

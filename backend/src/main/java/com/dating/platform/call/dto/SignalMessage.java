@@ -27,6 +27,12 @@ public record SignalMessage(
         OFFER,
         ANSWER,
         ICE_CANDIDATE,
-        HANGUP
+        HANGUP,
+        /**
+         * {@code {"audio":bool,"video":bool}} - whether the sender's mic and camera are on.
+         * Browsers do not reliably tell the other side that a camera was switched off (the
+         * last frame just freezes on screen), so each peer announces it explicitly.
+         */
+        MEDIA_STATE
     }
 }

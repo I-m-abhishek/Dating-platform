@@ -43,6 +43,8 @@ export function useInboundLikes(page = 0, size = 20) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.likes.all });
       if (result.matched) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
+        // A match opens a conversation; the Messages tab should show it without a refresh.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
       }
     },
     onError: handleError,

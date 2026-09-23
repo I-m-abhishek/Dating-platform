@@ -147,7 +147,7 @@ credentials are allowed.
 
 ## Before production
 
-- [ ] Set `JWT_SECRET` to at least 32 random bytes. The default in `application.yml` is a
+- [ ] Set `JWT_SECRET` to at least 32 random bytes. The default in `application.properties` is a
       development placeholder and the app says so.
 - [ ] Set `FRONTEND_ORIGIN`; the prod profile uses it for CORS.
 - [ ] Terminate TLS in front of the API and let the proxy strip `X-Forwarded-For`.

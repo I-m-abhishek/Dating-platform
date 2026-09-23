@@ -236,6 +236,62 @@ export function VideoIcon(props: IconProps) {
   );
 }
 
+export function VideoOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M15.5 10.2V9.1a2.6 2.6 0 0 0-2.6-2.6H8.4M5 6.9A2.6 2.6 0 0 0 3 9.1v5.8a2.6 2.6 0 0 0 2.6 2.6h7.3a2.6 2.6 0 0 0 2.4-1.6" />
+      <path d="m15.5 12 5.5-3.2v6.4L15.5 12Z" />
+      <path d="m3 3 18 18" />
+    </Icon>
+  );
+}
+
+export function MicIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </Icon>
+  );
+}
+
+export function MicOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M15 9.6V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 4.7 2.5" />
+      <path d="M18.5 11a6.5 6.5 0 0 1-.9 3.3M5.5 11a6.5 6.5 0 0 0 10.2 5.3M12 17.5V21" />
+      <path d="m3 3 18 18" />
+    </Icon>
+  );
+}
+
+export function FlipCameraIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z" />
+      <path d="M9.2 12.2a3 3 0 0 1 5.3-1.4M14.8 13.8a3 3 0 0 1-5.3 1.4" />
+      <path d="M14.8 9.2v1.8H13M9.2 16.8V15H11" />
+    </Icon>
+  );
+}
+
+export function InfoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5M12 7.6v.1" />
+    </Icon>
+  );
+}
+
+export function MinimizeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 14h6v6M20 10h-6V4M14 10l6.5-6.5M3.5 20.5 10 14" />
+    </Icon>
+  );
+}
+
 export function ImageIcon(props: IconProps) {
   return (
     <Icon {...props}>

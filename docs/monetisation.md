@@ -30,26 +30,23 @@ Two systems, and the distinction matters:
 
 ## Where a limit lives
 
-One place: `application.yml`.
+One place: `application.properties`.
 
-```yaml
-app:
-  quota:
-    free:
-      photo-comments-per-day: 5
-      likes-per-day: 20
-      auto-match-per-week: 1
-      rewinds-per-day: 0
-    plus:
-      photo-comments-per-day: 25
-      likes-per-day: 100
-      auto-match-per-week: 3
-      rewinds-per-day: 5
-    premium:
-      photo-comments-per-day: 100
-      likes-per-day: -1
-      auto-match-per-day: 1
-      rewinds-per-day: -1
+```properties
+app.quota.free.photo-comments-per-day=5
+app.quota.free.likes-per-day=20
+app.quota.free.auto-match-per-week=1
+app.quota.free.rewinds-per-day=0
+
+app.quota.plus.photo-comments-per-day=25
+app.quota.plus.likes-per-day=100
+app.quota.plus.auto-match-per-week=3
+app.quota.plus.rewinds-per-day=5
+
+app.quota.premium.photo-comments-per-day=100
+app.quota.premium.likes-per-day=-1
+app.quota.premium.auto-match-per-day=1
+app.quota.premium.rewinds-per-day=-1
 ```
 
 **To change the free comment allowance from 5 to 3, edit that one line.** The backend reads

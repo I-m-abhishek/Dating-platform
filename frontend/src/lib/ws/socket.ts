@@ -3,8 +3,19 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { tokenStore } from '@/lib/api/tokenStore';
+import { parseApiJson } from '@/lib/api/client';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:8080/ws';
+/**
+ * An empty NEXT_PUBLIC_WS_URL means "same origin": the socket goes through the Next dev
+ * server's /ws rewrite. That is how a phone on HTTPS reaches the backend without mixed
+ * content errors.
+ */
+function wsUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_WS_URL;
+  if (configured) return configured;
+  if (configured === '' && typeof window !== 'undefined') return `${window.location.origin}/ws`;
+  return 'http://localhost:8080/ws';
+}
 
 type Handler = (payload: unknown) => void;
 
@@ -32,8 +43,16 @@ class SocketManager {
     this.client = new Client({
       // SockJS rather than a raw WebSocket: it falls back cleanly behind proxies that
       // mangle upgrade requests, which is common on corporate networks.
-      webSocketFactory: () => new SockJS(WS_URL) as unknown as WebSocket,
+      webSocketFactory: () => new SockJS(wsUrl()) as unknown as WebSocket,
       connectHeaders: { Authorization: `Bearer ${token}` },
+      // Access tokens are short-lived. Read the current one on every (re)connect, or the
+      // first reconnect after it rotates is rejected and the socket stays dead for good.
+      beforeConnect: () => {
+        const current = tokenStore.getAccessToken();
+        if (current && this.client) {
+          this.client.connectHeaders = { Authorization: `Bearer ${current}` };
+        }
+      },
       reconnectDelay: 4000,
       heartbeatIncoming: 10_000,
       heartbeatOutgoing: 10_000,
@@ -57,7 +76,8 @@ class SocketManager {
   disconnect(): void {
     this.subscriptions.forEach((subscription) => subscription.unsubscribe());
     this.subscriptions.clear();
-    this.handlers.clear();
+    // Handlers are kept: they belong to mounted components, which remove them in their own
+    // cleanup. Clearing them here silently orphaned every listener across a sign-out/in.
     this.connected = false;
     void this.client?.deactivate();
     this.client = null;
@@ -103,7 +123,7 @@ class SocketManager {
     const subscription = this.client.subscribe(destination, (message: IMessage) => {
       let payload: unknown = message.body;
       try {
-        payload = JSON.parse(message.body);
+        payload = parseApiJson(message.body);
       } catch {
         // Not every frame is JSON; pass the raw body through rather than dropping it.
       }
