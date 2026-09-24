@@ -71,15 +71,18 @@ export function useLiveNotifications() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
 
       // Nudge the counters the tab bar shows.
+      // Only the list and the badge - chat.all would also refetch the open thread's
+      // history, which resets it to page one and drops older messages already loaded.
       if (notification.type === 'NEW_MESSAGE' || notification.type === 'MISSED_CALL') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.all });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.unreadCount() });
       }
       if (notification.type === 'NEW_LIKE') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.likes.all });
       }
       if (notification.type === 'NEW_MATCH' || notification.type === 'AUTO_MATCH_READY') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.all });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
       }
     });
   }, [queryClient, toast]);
@@ -124,6 +127,6 @@ export function useUnreadNotificationCount() {
     queryKey: queryKeys.notifications.unreadCount(),
     queryFn: notificationApi.unreadCount,
     select: (data) => data.count,
-    refetchInterval: 90_000,
+    refetchInterval: 180_000,
   });
 }

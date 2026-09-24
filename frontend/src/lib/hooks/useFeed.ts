@@ -2,11 +2,12 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { discoveryApi, likeApi } from '@/lib/api/endpoints';
+import { accountApi, discoveryApi, likeApi } from '@/lib/api/endpoints';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { usePaywall } from './usePaywall';
 import { useUiStore } from '@/lib/stores/uiStore';
-import type { FeedCard, FeedFilter, LikeResult } from '@/lib/api/types';
+import { useAuthStore } from '@/lib/stores/authStore';
+import type { FeedCard, FeedFilter, LikeIntent, LikeResult } from '@/lib/api/types';
 
 const DEFAULT_FILTER: FeedFilter = { sort: 'RECOMMENDED' };
 
@@ -44,17 +45,19 @@ export function useFeed(initialFilter: FeedFilter = DEFAULT_FILTER) {
   );
 
   const likeMutation = useMutation({
-    mutationFn: (input: { targetUserId: string; note?: string; targetPhotoId?: string; superLike?: boolean }) =>
+    mutationFn: (input: { targetUserId: string } & LikeIntent) =>
       likeApi.like({
         targetUserId: input.targetUserId,
         note: input.note,
         targetPhotoId: input.targetPhotoId,
+        targetPromptAnswerId: input.targetPromptAnswerId,
         type: input.superLike ? 'SUPER' : 'STANDARD',
       }),
     onMutate: (input) => {
       removeCard(input.targetUserId);
     },
     onSuccess: (result: LikeResult) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.likes.quota() });
       if (result.matched) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.matches.all });
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
@@ -104,4 +107,34 @@ export function useFeed(initialFilter: FeedFilter = DEFAULT_FILTER) {
     rewind: rewindMutation.mutate,
     isActing: likeMutation.isPending || passMutation.isPending,
   };
+}
+
+/**
+ * The saved filter sheet. Age, distance and "show me" come back from the account's
+ * preferences; paid filters are omitted by the server for accounts without them.
+ */
+export function useSavedFilters() {
+  return useQuery({
+    queryKey: queryKeys.discovery.filters(),
+    queryFn: discoveryApi.filters,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Saves the filter sheet. The server also writes age, distance and "show me" through to
+ * the account, so the cached account is refreshed to keep Settings and the profile in step.
+ */
+export function useSaveFilters() {
+  const queryClient = useQueryClient();
+  const setAccount = useAuthStore((state) => state.setAccount);
+
+  return useMutation({
+    mutationFn: discoveryApi.saveFilters,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.discovery.filters(), saved);
+      void accountApi.me().then(setAccount);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
+    },
+  });
 }

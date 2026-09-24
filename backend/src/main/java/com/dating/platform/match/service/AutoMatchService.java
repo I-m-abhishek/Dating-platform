@@ -117,12 +117,13 @@ public class AutoMatchService {
                     "Finish your profile to join the next auto-match");
         }
 
-        List<UUID> excluded = new ArrayList<>(matchService.matchedCounterpartIds(userId));
+        // Existing matches are excluded inside the candidate query itself.
+        List<UUID> excluded = new ArrayList<>();
         excluded.add(userId);
         excluded.addAll(alreadyAutoMatchedThisPeriod(cadence, periodKey));
 
         List<UUID> candidateIds = candidateFinder.findCandidateIds(
-                user, FeedFilterRequest.empty(), excluded.stream().distinct().toList(),
+                user, FeedFilterRequest.empty(), false, excluded.stream().distinct().toList(),
                 appProperties.matching().candidatePoolSize());
 
         if (candidateIds.isEmpty()) {

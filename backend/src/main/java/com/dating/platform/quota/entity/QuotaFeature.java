@@ -11,6 +11,7 @@ public enum QuotaFeature {
 
     PHOTO_COMMENT("photo comments", Period.DAILY),
     LIKE("likes", Period.DAILY),
+    SUPER_LIKE("super likes", Period.DAILY),
     AUTO_MATCH_WEEKLY("weekly auto-matches", Period.WEEKLY),
     AUTO_MATCH_DAILY("daily auto-matches", Period.DAILY),
     REWIND("rewinds", Period.DAILY);

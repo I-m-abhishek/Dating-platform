@@ -24,6 +24,10 @@ public record InboundLikeResponse(
         String note,
         UUID targetPhotoId,
         String targetPhotoUrl,
+        /** Set when the like was on one of your prompts: the question and your answer. */
+        UUID targetPromptAnswerId,
+        String targetPrompt,
+        String targetPromptAnswer,
         boolean seen,
         Instant likedAt
 ) {

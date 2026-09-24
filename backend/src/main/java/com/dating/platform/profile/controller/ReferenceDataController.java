@@ -34,7 +34,7 @@ public class ReferenceDataController {
 
     @Operation(summary = "All selectable interests")
     @GetMapping("/interests")
-    @Cacheable(CacheConfig.CACHE_REFERENCE_DATA)
+    @Cacheable(cacheNames = CacheConfig.CACHE_REFERENCE_DATA, key = "'interests'")
     public ApiResponse<List<TagResponse>> interests() {
         return ApiResponse.success(interestRepository.findAllByActiveTrueOrderByCategoryAscLabelAsc().stream()
                 .map(i -> new TagResponse(i.getId(), i.getSlug(), i.getLabel(), i.getCategory(), i.getEmoji()))
@@ -43,7 +43,7 @@ public class ReferenceDataController {
 
     @Operation(summary = "All selectable qualities")
     @GetMapping("/qualities")
-    @Cacheable(CacheConfig.CACHE_REFERENCE_DATA)
+    @Cacheable(cacheNames = CacheConfig.CACHE_REFERENCE_DATA, key = "'qualities'")
     public ApiResponse<List<TagResponse>> qualities() {
         return ApiResponse.success(qualityRepository.findAllByActiveTrueOrderByDimensionAscLabelAsc().stream()
                 .map(q -> new TagResponse(q.getId(), q.getSlug(), q.getLabel(), q.getDimension(), null))
@@ -52,7 +52,7 @@ public class ReferenceDataController {
 
     @Operation(summary = "All available prompts")
     @GetMapping("/prompts")
-    @Cacheable(CacheConfig.CACHE_REFERENCE_DATA)
+    @Cacheable(cacheNames = CacheConfig.CACHE_REFERENCE_DATA, key = "'prompts'")
     public ApiResponse<List<PromptOption>> prompts() {
         return ApiResponse.success(promptRepository.findAllByActiveTrueOrderByDisplayOrderAscTextAsc().stream()
                 .map(p -> new PromptOption(p.getId(), p.getSlug(), p.getText(), p.getCategory()))

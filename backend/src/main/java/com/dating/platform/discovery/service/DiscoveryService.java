@@ -5,10 +5,9 @@ import com.dating.platform.common.response.PageResponse;
 import com.dating.platform.config.AppProperties;
 import com.dating.platform.discovery.dto.FeedCardResponse;
 import com.dating.platform.discovery.dto.FeedFilterRequest;
-import com.dating.platform.interaction.service.LikeService;
+import com.dating.platform.interaction.repository.LikeRepository;
 import com.dating.platform.match.engine.CompatibilityScore;
 import com.dating.platform.match.engine.CompatibilityScorer;
-import com.dating.platform.match.service.MatchService;
 import com.dating.platform.profile.entity.Photo;
 import com.dating.platform.profile.entity.Profile;
 import com.dating.platform.profile.entity.PromptAnswer;
@@ -34,6 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,10 +64,9 @@ public class DiscoveryService {
     private final PromptAnswerRepository promptAnswerRepository;
     private final CandidateFinder candidateFinder;
     private final CompatibilityScorer compatibilityScorer;
-    private final MatchService matchService;
-    private final LikeService likeService;
     private final EntitlementService entitlementService;
     private final ProfileMapper profileMapper;
+    private final LikeRepository likeRepository;
     private final AppProperties appProperties;
 
     @Transactional(readOnly = true)
@@ -81,15 +80,9 @@ public class DiscoveryService {
         Profile viewerProfile = profileRepository.findByUserId(viewerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Profile", viewerId));
 
-        List<UUID> excluded = Stream.concat(
-                        matchService.matchedCounterpartIds(viewerId).stream(),
-                        likeService.alreadyActedOn(viewerId).stream())
-                .distinct()
-                .collect(Collectors.toCollection(ArrayList::new));
-        excluded.add(viewerId);
-
+        // Matches, likes and passes are excluded inside the candidate query itself.
         List<UUID> candidateIds = candidateFinder.findCandidateIds(
-                viewer, filter, excluded, appProperties.matching().candidatePoolSize());
+                viewer, filter, true, List.of(viewerId), appProperties.matching().candidatePoolSize());
         if (candidateIds.isEmpty()) {
             return PageResponse.of(List.of(), page, size, 0);
         }
@@ -99,6 +92,7 @@ public class DiscoveryService {
         Map<UUID, Profile> profiles = profileRepository.findAllByUserIdIn(candidateIds).stream()
                 .collect(Collectors.toMap(p -> p.getUser().getId(), p -> p));
 
+        Instant now = Instant.now();
         int maxDistanceKm = filter.maxDistanceKm() != null
                 ? filter.maxDistanceKm() : viewer.getPreferredMaxDistanceKm();
 
@@ -106,17 +100,31 @@ public class DiscoveryService {
                 .map(id -> pairOf(users.get(id), profiles.get(id)))
                 .filter(Objects::nonNull)
                 .filter(c -> candidateFinder.withinDistance(viewer, c.user(), maxDistanceKm))
-                .filter(c -> matchesAdvancedFilters(c, filter))
+                .filter(c -> FeedFilterMatcher.matches(c.user(), c.profile(), filter, now))
                 .map(c -> new Scored(c.user(), c.profile(),
                         compatibilityScorer.score(viewer, viewerProfile, c.user(), c.profile())))
                 .sorted(comparatorFor(filter, viewer))
                 .toList();
 
+        /*
+         * The super like priority lane: whoever super liked the viewer goes to the front,
+         * whatever the sort, keeping the chosen order within each group. That visibility is
+         * what a super like buys.
+         */
+        Set<UUID> superLikers = scored.isEmpty() ? Set.of() : Set.copyOf(likeRepository.findPendingSuperLikers(
+                viewerId, scored.stream().map(s -> s.user().getId()).toList()));
+        if (!superLikers.isEmpty()) {
+            scored = Stream.concat(
+                            scored.stream().filter(s -> superLikers.contains(s.user().getId())),
+                            scored.stream().filter(s -> !superLikers.contains(s.user().getId())))
+                    .toList();
+        }
+
         int from = Math.min(page * size, scored.size());
         int to = Math.min(from + size, scored.size());
         List<Scored> pageSlice = scored.subList(from, to);
 
-        return PageResponse.of(toCards(viewer, viewerProfile, pageSlice), page, size, scored.size());
+        return PageResponse.of(toCards(viewer, viewerProfile, pageSlice, superLikers), page, size, scored.size());
     }
 
     // ---- ranking -------------------------------------------------------
@@ -148,38 +156,11 @@ public class DiscoveryService {
                 candidate.getLatitude(), candidate.getLongitude());
     }
 
-    private boolean matchesAdvancedFilters(Candidate candidate, FeedFilterRequest filter) {
-        Profile profile = candidate.profile();
-
-        if (filter.intents() != null && !filter.intents().isEmpty()
-                && !filter.intents().contains(profile.getRelationshipIntent())) {
-            return false;
-        }
-        if (filter.minHeightCm() != null
-                && (profile.getHeightCm() == null || profile.getHeightCm() < filter.minHeightCm())) {
-            return false;
-        }
-        if (filter.maxHeightCm() != null
-                && (profile.getHeightCm() == null || profile.getHeightCm() > filter.maxHeightCm())) {
-            return false;
-        }
-        if (Boolean.TRUE.equals(filter.onlyVerified()) && !candidate.user().isPhotoVerified()) {
-            return false;
-        }
-        if (filter.interestIds() != null && !filter.interestIds().isEmpty()) {
-            boolean hasAny = profile.getInterests() != null && profile.getInterests().stream()
-                    .anyMatch(i -> filter.interestIds().contains(i.getId()));
-            if (!hasAny) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     // ---- assembly ------------------------------------------------------
 
     /** Photos and prompts are loaded only for the page being returned, not the whole pool. */
-    private List<FeedCardResponse> toCards(User viewer, Profile viewerProfile, List<Scored> slice) {
+    private List<FeedCardResponse> toCards(User viewer, Profile viewerProfile, List<Scored> slice,
+                                           Set<UUID> superLikers) {
         if (slice.isEmpty()) {
             return List.of();
         }
@@ -215,7 +196,8 @@ public class DiscoveryService {
                     score.total(),
                     score.highlights(),
                     user.isPhotoVerified(),
-                    isRecentlyActive(user)));
+                    isRecentlyActive(user),
+                    superLikers.contains(user.getId())));
         }
         return cards;
     }

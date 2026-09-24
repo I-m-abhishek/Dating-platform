@@ -26,24 +26,34 @@ public interface LikeRepository extends JpaRepository<Like, UUID> {
 
     boolean existsBySenderIdAndReceiverId(UUID senderId, UUID receiverId);
 
-    /** The Likes You tab: pending inbound likes, newest and SUPER first. */
+    /** The Likes You tab: pending inbound likes, SUPER first (they are the priority lane), then newest. */
     @Query("""
             select l from Like l
             where l.receiverId = :userId
               and l.status = :status
               and l.senderId not in :hiddenIds
-            order by l.type desc, l.createdAt desc
+            order by case when l.type = com.dating.platform.interaction.entity.LikeType.SUPER then 0 else 1 end,
+                     l.createdAt desc
             """)
     Page<Like> findInbound(@Param("userId") UUID userId,
                            @Param("status") LikeStatus status,
                            @Param("hiddenIds") Collection<UUID> hiddenIds,
                            Pageable pageable);
 
+    /** Both badge numbers for the Likes You tab in a single pass over the receiver index. */
     @Query("""
-            select count(l) from Like l
+            select count(l) as total,
+                   coalesce(sum(case when l.seen = false then 1L else 0L end), 0L) as unseen
+            from Like l
             where l.receiverId = :userId and l.status = :status
             """)
-    long countInbound(@Param("userId") UUID userId, @Param("status") LikeStatus status);
+    InboundCounts countInboundAndUnseen(@Param("userId") UUID userId, @Param("status") LikeStatus status);
+
+    interface InboundCounts {
+        long getTotal();
+
+        long getUnseen();
+    }
 
     @Query("""
             select count(l) from Like l
@@ -51,9 +61,6 @@ public interface LikeRepository extends JpaRepository<Like, UUID> {
             """)
     long countUnseenInbound(@Param("userId") UUID userId, @Param("status") LikeStatus status);
 
-    /** Everyone this user has already acted on - excluded from discovery. */
-    @Query("select l.receiverId from Like l where l.senderId = :userId")
-    List<UUID> findReceiverIdsBySender(@Param("userId") UUID userId);
 
     @Modifying
     @Query("""
@@ -67,4 +74,15 @@ public interface LikeRepository extends JpaRepository<Like, UUID> {
     int updateStatus(@Param("ids") Collection<UUID> ids, @Param("status") LikeStatus status);
 
     long countBySenderIdAndCreatedAtAfter(UUID senderId, Instant after);
+
+    /** Of these people, who has a pending super like waiting on {@code receiverId} - for the feed's priority lane. */
+    @Query("""
+            select l.senderId from Like l
+            where l.receiverId = :receiverId
+              and l.senderId in :senderIds
+              and l.status = com.dating.platform.interaction.entity.LikeStatus.PENDING
+              and l.type = com.dating.platform.interaction.entity.LikeType.SUPER
+            """)
+    List<UUID> findPendingSuperLikers(@Param("receiverId") UUID receiverId,
+                                      @Param("senderIds") Collection<UUID> senderIds);
 }

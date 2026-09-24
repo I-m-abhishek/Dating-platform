@@ -2,13 +2,19 @@ package com.dating.platform.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 
+/**
+ * In-process Caffeine caches. Without {@link EnableCaching} every {@code @Cacheable} in the
+ * codebase is inert, so it lives here beside the cache names it serves.
+ */
 @Configuration
+@EnableCaching
 public class CacheConfig {
 
     public static final String CACHE_PLANS = "plans";

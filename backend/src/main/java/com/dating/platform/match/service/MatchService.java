@@ -179,18 +179,10 @@ public class MatchService {
         return match;
     }
 
-    /** Ids to exclude from discovery: anyone already matched, in any status. */
-    @Transactional(readOnly = true)
-    public List<UUID> matchedCounterpartIds(UUID userId) {
-        return matchRepository.findAllCounterpartIds(userId);
-    }
-
     @Transactional
     public void touchInteraction(UUID matchId) {
-        matchRepository.findById(matchId).ifPresent(match -> {
-            match.setLastInteractionAt(Instant.now());
-            matchRepository.save(match);
-        });
+        // Single UPDATE: this runs on every message sent, so no load-then-save round trip.
+        matchRepository.touchLastInteraction(matchId, Instant.now());
     }
 
     // ---- internals -----------------------------------------------------

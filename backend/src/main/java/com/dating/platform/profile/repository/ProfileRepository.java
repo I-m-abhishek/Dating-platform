@@ -21,8 +21,14 @@ public interface ProfileRepository extends JpaRepository<Profile, UUID> {
 
     boolean existsByUserId(UUID userId);
 
-    /** Batch load for the matching engine - avoids N+1 across the candidate pool. */
-    @EntityGraph(attributePaths = {"interests", "qualities"})
+    /**
+     * Batch load for the matching engine - avoids N+1 across the candidate pool.
+     *
+     * <p>Only one collection is fetch-joined: joining interests and qualities together
+     * returns profiles x interests x qualities rows. Qualities are batch-loaded instead
+     * (hibernate.default_batch_fetch_size), so every caller must be inside a transaction.
+     */
+    @EntityGraph(attributePaths = {"interests"})
     @Query("select p from Profile p where p.user.id in :userIds")
     List<Profile> findAllByUserIdIn(@Param("userIds") List<UUID> userIds);
 }

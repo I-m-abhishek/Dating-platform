@@ -1,9 +1,7 @@
 package com.dating.platform.standout.service;
 
 import com.dating.platform.common.exception.ResourceNotFoundException;
-import com.dating.platform.interaction.service.LikeService;
 import com.dating.platform.match.engine.CompatibilityScorer;
-import com.dating.platform.match.service.MatchService;
 import com.dating.platform.profile.entity.Photo;
 import com.dating.platform.profile.entity.Profile;
 import com.dating.platform.profile.entity.PromptAnswer;
@@ -11,11 +9,11 @@ import com.dating.platform.profile.mapper.ProfileMapper;
 import com.dating.platform.profile.repository.PhotoRepository;
 import com.dating.platform.profile.repository.ProfileRepository;
 import com.dating.platform.profile.repository.PromptAnswerRepository;
-import com.dating.platform.safety.service.BlockService;
 import com.dating.platform.standout.dto.StandoutResponse;
 import com.dating.platform.standout.entity.StandoutSnapshot;
 import com.dating.platform.standout.repository.StandoutSnapshotRepository;
 import com.dating.platform.user.entity.User;
+import com.dating.platform.user.entity.enums.Gender;
 import com.dating.platform.user.repository.UserRepository;
 import com.dating.platform.util.DateUtils;
 import com.dating.platform.util.GeoUtils;
@@ -25,12 +23,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Serves the Standouts shelf from the latest precomputed snapshot.
@@ -57,9 +57,6 @@ public class StandoutService {
     private final PhotoRepository photoRepository;
     private final PromptAnswerRepository promptAnswerRepository;
     private final CompatibilityScorer compatibilityScorer;
-    private final BlockService blockService;
-    private final MatchService matchService;
-    private final LikeService likeService;
     private final ProfileMapper profileMapper;
 
     @Transactional(readOnly = true)
@@ -76,25 +73,30 @@ public class StandoutService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", viewerId));
         Profile viewerProfile = profileRepository.findByUserId(viewerId).orElse(null);
 
-        List<UUID> excluded = Stream.of(
-                        blockService.hiddenUserIdsFor(viewerId).stream(),
-                        matchService.matchedCounterpartIds(viewerId).stream(),
-                        likeService.alreadyActedOn(viewerId).stream(),
-                        Stream.of(viewerId))
-                .flatMap(s -> s)
-                .distinct()
-                .collect(Collectors.toCollection(ArrayList::new));
-
         // Over-fetch: some rows will be dropped by the gender-preference check below.
-        List<StandoutSnapshot> snapshots = snapshotRepository.findTop(
-                cycleKey, excluded, PageRequest.of(0, size * OVERFETCH_FACTOR));
+        List<StandoutSnapshot> candidates = snapshotRepository.findTopFor(
+                cycleKey, viewerId, viewer.getGender(), wantedBy(viewer), Instant.now(),
+                PageRequest.of(0, size * OVERFETCH_FACTOR));
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, User> users = userRepository.findAllById(
+                        candidates.stream().map(StandoutSnapshot::getUserId).toList()).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        // Preference check before hydration, so profiles, photos and prompts are loaded only
+        // for the tiles actually returned rather than the whole over-fetch.
+        List<StandoutSnapshot> snapshots = candidates.stream()
+                .filter(s -> users.containsKey(s.getUserId())
+                        && preferencesOverlap(viewer, users.get(s.getUserId())))
+                .limit(size)
+                .toList();
         if (snapshots.isEmpty()) {
             return List.of();
         }
 
         List<UUID> userIds = snapshots.stream().map(StandoutSnapshot::getUserId).toList();
-        Map<UUID, User> users = userRepository.findAllById(userIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> u));
         Map<UUID, Profile> profiles = profileRepository.findAllByUserIdIn(userIds).stream()
                 .collect(Collectors.toMap(p -> p.getUser().getId(), p -> p));
         Map<UUID, List<Photo>> photos = photoRepository.findAllByUserIds(userIds).stream()
@@ -110,7 +112,7 @@ public class StandoutService {
             }
             User candidate = users.get(snapshot.getUserId());
             Profile candidateProfile = profiles.get(snapshot.getUserId());
-            if (candidate == null || candidateProfile == null || !preferencesOverlap(viewer, candidate)) {
+            if (candidate == null || candidateProfile == null) {
                 continue;
             }
 
@@ -138,11 +140,26 @@ public class StandoutService {
 
     /** Both sides must be open to the other's gender - the shelf is not exempt from preferences. */
     private boolean preferencesOverlap(User viewer, User candidate) {
-        boolean viewerWants = viewer.getInterestedIn() == null || viewer.getInterestedIn().isEmpty()
-                || viewer.getInterestedIn().contains(candidate.getGender());
-        boolean candidateWants = candidate.getInterestedIn() == null || candidate.getInterestedIn().isEmpty()
-                || candidate.getInterestedIn().contains(viewer.getGender());
-        return viewerWants && candidateWants;
+        return wantedBy(viewer).contains(candidate.getGender())
+                && wantedBy(candidate).contains(viewer.getGender());
+    }
+
+    /**
+     * The genders a user wants to see. Someone who never set "Show me" gets the opposite
+     * gender rather than everyone - a man with no preference is shown women, a woman men.
+     */
+    private static Set<Gender> wantedBy(User user) {
+        if (user.getInterestedIn() != null && !user.getInterestedIn().isEmpty()) {
+            return user.getInterestedIn();
+        }
+        if (user.getGender() == null) {
+            return EnumSet.allOf(Gender.class);
+        }
+        return switch (user.getGender()) {
+            case MAN -> EnumSet.of(Gender.WOMAN);
+            case WOMAN -> EnumSet.of(Gender.MAN);
+            default -> EnumSet.allOf(Gender.class);
+        };
     }
 
     private Integer distanceLabel(User viewer, User candidate) {

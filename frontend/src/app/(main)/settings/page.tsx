@@ -10,6 +10,8 @@ import { LinkButton } from '@/components/ui/LinkButton';
 import { FullPageLoader } from '@/components/ui/FullPageLoader';
 import { Switch } from '@/components/ui/Switch';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { Chip } from '@/components/ui/Chip';
+import { humanise } from '@/lib/utils/format';
 import {
   DISTANCE_SLIDER_MAX,
   DISTANCE_SLIDER_MIN,
@@ -23,6 +25,30 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useEntitlements } from '@/lib/hooks/useEntitlements';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { isApiError, messageOf } from '@/lib/api/errors';
+import type { Account, Gender } from '@/lib/api/types';
+
+const GENDERS: Gender[] = ['WOMAN', 'MAN', 'NON_BINARY', 'OTHER'];
+
+interface DiscoveryDraft {
+  distance: number;
+  minAge: number;
+  maxAge: number;
+  interestedIn: Gender[];
+}
+
+function draftFrom(account: Account | null | undefined): DiscoveryDraft {
+  return {
+    distance: distanceToSlider(account?.preferredMaxDistanceKm),
+    minAge: account?.preferredMinAge ?? 18,
+    maxAge: account?.preferredMaxAge ?? 45,
+    interestedIn: account?.interestedIn ?? [],
+  };
+}
+
+/** Order-insensitive identity of a draft, for dirty checks and resyncs. */
+function draftKey(draft: DiscoveryDraft): string {
+  return [draft.distance, draft.minAge, draft.maxAge, [...draft.interestedIn].sort().join('|')].join(',');
+}
 
 /**
  * Settings.
@@ -61,26 +87,47 @@ function SettingsPage() {
   });
 
   /*
-   * A range input emits a change event per pixel of drag. Committing each one raced (the
-   * last response won, not the last value), fought the thumb - which was pinned to the
-   * server's value until a reply arrived - and tripped the rate limiter. The thumb now
-   * follows local state and the server is told once, when the drag ends.
+   * Discovery preferences are edited as a draft and committed with an explicit Save.
+   * Committing on every slider release raced, tripped the rate limiter, and left no way
+   * to back out of a half-made change. The distance draft is the slider POSITION, not the
+   * stored radius: the top stop maps to "no limit", a far larger number than it shows.
    */
-  // Slider POSITION, not the stored radius: the top stop maps to "no limit", which is a
-  // much larger number than the slider itself ever shows.
-  const [distanceKm, setDistanceKm] = useState(distanceToSlider(account?.preferredMaxDistanceKm));
+  const [draft, setDraft] = useState<DiscoveryDraft>(() => draftFrom(account));
 
+  const saved = draftFrom(account);
+  const savedKey = draftKey(saved);
+  const dirty = draftKey(draft) !== savedKey;
+
+  // Resync when the saved values change underneath (e.g. from the home filter sheet).
   useEffect(() => {
-    if (account) {
-      setDistanceKm(distanceToSlider(account.preferredMaxDistanceKm));
-    }
-  }, [account?.preferredMaxDistanceKm]);
+    setDraft(draftFrom(useAuthStore.getState().account));
+  }, [savedKey]);
 
-  const commitDistance = () => {
-    const next = sliderToDistance(distanceKm);
-    if (account && next !== account.preferredMaxDistanceKm) {
-      updatePreferences.mutate({ preferredMaxDistanceKm: next });
-    }
+  const toggleGender = (gender: Gender) =>
+    setDraft((current) => ({
+      ...current,
+      interestedIn: current.interestedIn.includes(gender)
+        ? current.interestedIn.filter((item) => item !== gender)
+        : [...current.interestedIn, gender],
+    }));
+
+  const saveDiscovery = () => {
+    if (!dirty || draft.interestedIn.length === 0) return;
+    updatePreferences.mutate(
+      {
+        preferredMaxDistanceKm: sliderToDistance(draft.distance),
+        preferredMinAge: draft.minAge,
+        preferredMaxAge: draft.maxAge,
+        interestedIn: draft.interestedIn,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: 'Preferences saved', tone: 'success' });
+          // The feed is keyed by filter, so cached pages from the old range are stale.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
+        },
+      },
+    );
   };
 
   const cancel = useMutation({
@@ -128,7 +175,7 @@ function SettingsPage() {
                   Maximum distance
                 </label>
                 <span className="font-display text-[17px] font-semibold tabular-nums text-gradient">
-                  {distanceFilterLabel(distanceKm)}
+                  {distanceFilterLabel(draft.distance)}
                 </span>
               </div>
               <input
@@ -136,14 +183,88 @@ function SettingsPage() {
                 type="range"
                 min={DISTANCE_SLIDER_MIN}
                 max={DISTANCE_SLIDER_MAX}
-                value={distanceKm}
-                aria-valuetext={distanceFilterLabel(distanceKm)}
-                onChange={(event) => setDistanceKm(Number(event.target.value))}
-                onPointerUp={commitDistance}
-                onKeyUp={commitDistance}
-                onBlur={commitDistance}
+                value={draft.distance}
+                aria-valuetext={distanceFilterLabel(draft.distance)}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, distance: Number(event.target.value) }))
+                }
                 className="w-full"
               />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[14px] font-medium text-ink">Age range</span>
+                <span className="font-display text-[17px] font-semibold tabular-nums text-gradient">
+                  {draft.minAge}&#8202;&ndash;&#8202;{draft.maxAge}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={18}
+                  max={99}
+                  value={draft.minAge}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      minAge: Math.min(Number(event.target.value), current.maxAge),
+                    }))
+                  }
+                  className="w-full"
+                  aria-label="Minimum age"
+                />
+                <input
+                  type="range"
+                  min={18}
+                  max={99}
+                  value={draft.maxAge}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      maxAge: Math.max(Number(event.target.value), current.minAge),
+                    }))
+                  }
+                  className="w-full"
+                  aria-label="Maximum age"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <span className="text-[14px] font-medium text-ink">Show me</span>
+              <div className="flex flex-wrap gap-2">
+                {GENDERS.map((gender) => (
+                  <Chip
+                    key={gender}
+                    selected={draft.interestedIn.includes(gender)}
+                    onClick={() => toggleGender(gender)}
+                  >
+                    {humanise(gender)}
+                  </Chip>
+                ))}
+              </div>
+              {draft.interestedIn.length === 0 ? (
+                <p className="text-xs text-danger">Pick at least one.</p>
+              ) : null}
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="ghost"
+                disabled={!dirty || updatePreferences.isPending}
+                onClick={() => setDraft(saved)}
+              >
+                Reset
+              </Button>
+              <Button
+                fullWidth
+                disabled={!dirty || draft.interestedIn.length === 0}
+                loading={updatePreferences.isPending}
+                onClick={saveDiscovery}
+              >
+                Save preferences
+              </Button>
             </div>
 
             <div className="space-y-5 border-t border-border pt-5">

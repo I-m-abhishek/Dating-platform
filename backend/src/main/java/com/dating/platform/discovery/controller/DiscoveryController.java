@@ -4,6 +4,7 @@ import com.dating.platform.common.response.ApiResponse;
 import com.dating.platform.common.response.PageResponse;
 import com.dating.platform.discovery.dto.FeedCardResponse;
 import com.dating.platform.discovery.dto.FeedFilterRequest;
+import com.dating.platform.discovery.service.DiscoveryFilterService;
 import com.dating.platform.discovery.service.DiscoveryService;
 import com.dating.platform.ratelimit.RateLimit;
 import com.dating.platform.security.UserPrincipal;
@@ -15,7 +16,9 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,12 +40,14 @@ import java.util.concurrent.TimeUnit;
 public class DiscoveryController {
 
     private final DiscoveryService discoveryService;
+    private final DiscoveryFilterService discoveryFilterService;
 
     @Operation(summary = "Browse profiles",
             description = """
                     Returns ranked profiles that match the caller's preferences.
-                    Distance and age always apply; height, intent, verification and interest
-                    filters require a paid plan and return PREMIUM_REQUIRED otherwise.
+                    Distance, age, show-me and interests are free; intent, height, activity,
+                    family plans, habits and verification require a paid plan and return
+                    PREMIUM_REQUIRED otherwise.
                     """)
     @PostMapping("/feed")
     @RateLimit(name = "discovery.feed", capacity = 120, period = 1, unit = TimeUnit.MINUTES)
@@ -54,5 +59,23 @@ public class DiscoveryController {
 
         FeedFilterRequest effective = filter == null ? FeedFilterRequest.empty() : filter;
         return ApiResponse.success(discoveryService.feed(principal.getId(), effective, page, size));
+    }
+
+    @Operation(summary = "My saved filters",
+            description = "Age, distance and show-me come from preferences; paid filters are "
+                    + "omitted for accounts without them.")
+    @GetMapping("/filters")
+    public ApiResponse<FeedFilterRequest> filters(@AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success(discoveryFilterService.get(principal.getId()));
+    }
+
+    @Operation(summary = "Save my filters",
+            description = "Also updates the age, distance and show-me preferences. Paid filters "
+                    + "return PREMIUM_REQUIRED for free accounts.")
+    @PutMapping("/filters")
+    @RateLimit(name = "discovery.filters", capacity = 30, period = 1, unit = TimeUnit.MINUTES)
+    public ApiResponse<FeedFilterRequest> saveFilters(@AuthenticationPrincipal UserPrincipal principal,
+                                                      @Valid @RequestBody FeedFilterRequest filter) {
+        return ApiResponse.success(discoveryFilterService.save(principal.getId(), filter));
     }
 }

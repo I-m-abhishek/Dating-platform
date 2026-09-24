@@ -10,6 +10,8 @@ export interface ProfileDetailsProps {
   religion?: string;
   zodiacSign?: string;
   relationshipIntent?: string;
+  /** Only passed for your own profile - who you want to see. */
+  interestedIn?: string[];
   drinking?: string;
   smoking?: string;
   /** Named childrenPreference, not children - React reserves that prop name. */
@@ -29,6 +31,7 @@ export function ProfileDetails(props: ProfileDetailsProps) {
     ['Height', heightLabel(props.heightCm)],
     ['Beliefs', props.religion],
     ['Star sign', props.zodiacSign],
+    ['Interested in', props.interestedIn?.length ? props.interestedIn.map(humanise).join(', ') : null],
     ['Looking for', humanise(props.relationshipIntent) || null],
     ['Drinks', humanise(props.drinking) || null],
     ['Smokes', humanise(props.smoking) || null],

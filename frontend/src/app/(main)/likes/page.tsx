@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CloseIcon, HeartIcon, LockIcon, StarIcon } from '@/components/ui/icons';
 import { useInboundLikes } from '@/lib/hooks/useLikes';
 import { relativeTime, distanceLabel } from '@/lib/utils/format';
+import { cn } from '@/lib/utils/cn';
 import { messageOf } from '@/lib/api/errors';
 
 /**
@@ -87,7 +88,11 @@ function LikesPage() {
             {rows.map((like, index) => (
               <li
                 key={like.likeId}
-                className="stagger card-interactive overflow-hidden"
+                className={cn(
+                  'stagger card-interactive overflow-hidden',
+                  // Super likes are the priority lane - they arrive first and stand out.
+                  like.type === 'SUPER' && 'ring-2 ring-sky-400/70',
+                )}
                 style={{ '--i': Math.min(index, 8) } as CSSProperties}
               >
                 <div className="relative aspect-[3/4] overflow-hidden bg-surface-muted">
@@ -103,10 +108,11 @@ function LikesPage() {
                         </span>
                       </div>
                     </>
-                  ) : like.user.primaryPhotoUrl ? (
+                  ) : (like.targetPhotoUrl ?? like.user.primaryPhotoUrl) ? (
                     <>
+                      {/* The photo they liked, when they liked one - that is the context. */}
                       <Image
-                        src={like.user.primaryPhotoUrl}
+                        src={(like.targetPhotoUrl ?? like.user.primaryPhotoUrl) as string}
                         alt={like.user.displayName ?? ''}
                         fill
                         sizes="(max-width: 768px) 50vw, 300px"
@@ -121,7 +127,7 @@ function LikesPage() {
                     <span className="absolute left-2.5 top-2.5">
                       <Badge tone="gold">
                         <StarIcon size={12} filled />
-                        Super
+                        Super like
                       </Badge>
                     </span>
                   ) : null}
@@ -162,9 +168,23 @@ function LikesPage() {
                         View profile
                       </Link>
 
+                      {/* What they liked, then what they said about it. */}
+                      {like.targetPrompt ? (
+                        <div className="space-y-0.5 rounded-xl border border-border px-2.5 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                            Your prompt · {like.targetPrompt}
+                          </p>
+                          <p className="line-clamp-2 text-[12px] leading-snug text-ink">
+                            {like.targetPromptAnswer}
+                          </p>
+                        </div>
+                      ) : like.targetPhotoUrl ? (
+                        <p className="text-[11px] font-semibold text-ink-subtle">Liked your photo</p>
+                      ) : null}
+
                       {like.note ? (
-                        <p className="line-clamp-2 rounded-xl bg-surface-muted px-2.5 py-2 text-[12px] leading-snug text-ink-muted">
-                          {like.note}
+                        <p className="line-clamp-3 rounded-xl bg-surface-muted px-2.5 py-2 text-[12px] leading-snug text-ink-muted">
+                          &ldquo;{like.note}&rdquo;
                         </p>
                       ) : null}
 

@@ -14,6 +14,7 @@ import type {
   FeedFilter,
   Gender,
   LikesOverview,
+  LikeQuota,
   LikeResult,
   Match,
   MediaAsset,
@@ -115,6 +116,10 @@ export const referenceApi = {
 export const discoveryApi = {
   feed: (filter: FeedFilter, page = 0, size = 10) =>
     http.post<PageResponse<FeedCard>>('/api/v1/discovery/feed', filter, { query: { page, size } }),
+  /** Saved filters, with age / distance / show-me taken from preferences. */
+  filters: () => http.get<FeedFilter>('/api/v1/discovery/filters'),
+  /** Saves the sheet and writes age / distance / show-me through to preferences. */
+  saveFilters: (filter: FeedFilter) => http.put<FeedFilter>('/api/v1/discovery/filters', filter),
 };
 
 export const likeApi = {
@@ -144,6 +149,7 @@ export const likeApi = {
     http.get<LikesOverview>('/api/v1/likes/inbound', { query: { page, size } }),
   markSeen: () => http.post<void>('/api/v1/likes/inbound/seen'),
   unseenCount: () => http.get<{ count: number }>('/api/v1/likes/inbound/unseen-count'),
+  quota: () => http.get<LikeQuota>('/api/v1/likes/quota'),
 };
 
 export const matchApi = {

@@ -14,6 +14,11 @@ import java.util.UUID;
 /**
  * The candidate query for discovery and auto-match.
  *
+ * <p>Matches, likes and passes are excluded with {@code NOT EXISTS} against their pair
+ * indexes rather than a {@code NOT IN} list built in Java: that list grows with every
+ * swipe, costs extra round trips to build, and eventually exceeds the bind-parameter
+ * limit. {@code excludedIds} is kept for the small, request-specific extras.
+ *
  * <p>Native SQL on purpose. Three things make it worth stepping outside JPQL:
  * the bounding-box pre-filter, the {@code EXISTS} checks against the preference and block
  * tables, and index-friendly ordering. The query returns ids only - hydration and exact
@@ -52,6 +57,25 @@ public interface DiscoveryRepository extends JpaRepository<User, UUID> {
                     WHERE (b.blocker_id = :viewerId AND b.blocked_id = u.id)
                        OR (b.blocker_id = u.id AND b.blocked_id = :viewerId)
                   )
+              AND NOT EXISTS (
+                    SELECT 1 FROM matches m
+                    WHERE (m.user_a_id = :viewerId AND m.user_b_id = u.id)
+                       OR (m.user_b_id = :viewerId AND m.user_a_id = u.id)
+                  )
+              AND (
+                    :excludeActedOn = FALSE
+                    OR (
+                        NOT EXISTS (
+                            SELECT 1 FROM likes l
+                            WHERE l.sender_id = :viewerId AND l.receiver_id = u.id
+                        )
+                        AND NOT EXISTS (
+                            SELECT 1 FROM passes p
+                            WHERE p.sender_id = :viewerId AND p.receiver_id = u.id
+                              AND p.expires_at > NOW()
+                        )
+                    )
+                  )
               AND u.id NOT IN (:excludedIds)
             ORDER BY u.last_active_at DESC NULLS LAST, u.created_at DESC
             LIMIT :poolSize
@@ -67,6 +91,7 @@ public interface DiscoveryRepository extends JpaRepository<User, UUID> {
                                 @Param("maxLat") double maxLat,
                                 @Param("minLon") double minLon,
                                 @Param("maxLon") double maxLon,
+                                @Param("excludeActedOn") boolean excludeActedOn,
                                 @Param("excludedIds") Collection<UUID> excludedIds,
                                 @Param("poolSize") int poolSize);
 

@@ -1,6 +1,7 @@
 package com.dating.platform.interaction.controller;
 
 import com.dating.platform.common.response.ApiResponse;
+import com.dating.platform.interaction.dto.LikeQuotaResponse;
 import com.dating.platform.interaction.dto.LikeRequest;
 import com.dating.platform.interaction.dto.LikeResultResponse;
 import com.dating.platform.interaction.dto.LikesOverviewResponse;
@@ -44,6 +45,12 @@ public class LikeController {
     public ApiResponse<LikeResultResponse> like(@AuthenticationPrincipal UserPrincipal principal,
                                                 @Valid @RequestBody LikeRequest request) {
         return ApiResponse.success(likeService.like(principal.getId(), request));
+    }
+
+    @Operation(summary = "Today's like and super like allowance")
+    @GetMapping("/quota")
+    public ApiResponse<LikeQuotaResponse> quota(@AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success(likeService.quota(principal.getId()));
     }
 
     @Operation(summary = "Pass on someone")

@@ -31,6 +31,8 @@ public record FeedCardResponse(
         double compatibilityScore,
         List<String> highlights,
         boolean photoVerified,
-        boolean recentlyActive
+        boolean recentlyActive,
+        /** They super liked the viewer - shown with a badge and moved to the front of the deck. */
+        boolean superLikedYou
 ) {
 }

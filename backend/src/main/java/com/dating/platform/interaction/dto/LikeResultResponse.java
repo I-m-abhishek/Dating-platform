@@ -14,6 +14,7 @@ public record LikeResultResponse(
         UUID likeId,
         boolean matched,
         MatchResponse match,
-        int likesRemainingToday
+        int likesRemainingToday,
+        int superLikesRemainingToday
 ) {
 }

@@ -71,7 +71,16 @@ export function useUnseenLikeCount() {
   return useQuery({
     queryKey: queryKeys.likes.unseenCount(),
     queryFn: likeApi.unseenCount,
-    refetchInterval: 60_000,
+    refetchInterval: 180_000,
     select: (data) => data.count,
+  });
+}
+
+/** Today's like and super like allowance - the "2 left" beside Super send. */
+export function useLikeQuota() {
+  return useQuery({
+    queryKey: queryKeys.likes.quota(),
+    queryFn: likeApi.quota,
+    staleTime: 60_000,
   });
 }

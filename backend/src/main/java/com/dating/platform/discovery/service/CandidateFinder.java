@@ -41,11 +41,13 @@ public class CandidateFinder {
     /**
      * @param viewer       the user we are finding candidates for
      * @param filter       request-level overrides; {@code null} fields fall back to saved preferences
-     * @param excludedIds  people already matched, liked, passed or auto-matched this period
+     * @param excludeActedOn whether people the viewer liked or recently passed are hidden;
+     *                       existing matches are always hidden
+     * @param excludedIds  extra ids to hide, e.g. people auto-matched this period
      * @param poolSize     hard cap on rows returned
      */
     @Transactional(readOnly = true)
-    public List<UUID> findCandidateIds(User viewer, FeedFilterRequest filter,
+    public List<UUID> findCandidateIds(User viewer, FeedFilterRequest filter, boolean excludeActedOn,
                                        Collection<UUID> excludedIds, int poolSize) {
         int minAge = firstNonNull(filter.minAge(), viewer.getPreferredMinAge(), 18);
         int maxAge = firstNonNull(filter.maxAge(), viewer.getPreferredMaxAge(), 99);
@@ -92,6 +94,7 @@ public class CandidateFinder {
                 lat + latDelta,
                 lon - lonDelta,
                 lon + lonDelta,
+                excludeActedOn,
                 excluded,
                 poolSize);
 

@@ -5,6 +5,7 @@ import com.dating.platform.common.exception.ErrorCode;
 import com.dating.platform.common.exception.ResourceNotFoundException;
 import com.dating.platform.common.response.PageResponse;
 import com.dating.platform.interaction.dto.InboundLikeResponse;
+import com.dating.platform.interaction.dto.LikeQuotaResponse;
 import com.dating.platform.interaction.dto.LikeRequest;
 import com.dating.platform.interaction.dto.LikeResultResponse;
 import com.dating.platform.interaction.dto.LikesOverviewResponse;
@@ -13,12 +14,17 @@ import com.dating.platform.interaction.entity.LikeStatus;
 import com.dating.platform.interaction.entity.Pass;
 import com.dating.platform.interaction.repository.LikeRepository;
 import com.dating.platform.interaction.repository.PassRepository;
+import com.dating.platform.chat.dto.SendMessageRequest;
+import com.dating.platform.chat.service.ChatService;
+import com.dating.platform.interaction.entity.LikeType;
 import com.dating.platform.match.entity.Match;
 import com.dating.platform.match.entity.MatchSource;
 import com.dating.platform.match.service.MatchService;
 import com.dating.platform.notification.entity.NotificationType;
 import com.dating.platform.notification.service.NotificationService;
+import com.dating.platform.profile.entity.PromptAnswer;
 import com.dating.platform.profile.repository.PhotoRepository;
+import com.dating.platform.profile.repository.PromptAnswerRepository;
 import com.dating.platform.profile.service.UserSummaryService;
 import com.dating.platform.quota.entity.QuotaFeature;
 import com.dating.platform.quota.service.QuotaService;
@@ -64,6 +70,8 @@ public class LikeService {
     private final PassRepository passRepository;
     private final UserRepository userRepository;
     private final PhotoRepository photoRepository;
+    private final PromptAnswerRepository promptAnswerRepository;
+    private final ChatService chatService;
     private final MatchService matchService;
     private final BlockService blockService;
     private final QuotaService quotaService;
@@ -78,8 +86,18 @@ public class LikeService {
             throw new BusinessException(ErrorCode.SELF_INTERACTION, "You cannot like yourself");
         }
         blockService.assertNotBlocked(senderId, receiverId);
-        userRepository.findById(receiverId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", receiverId));
+        if (!userRepository.existsById(receiverId)) {
+            throw new ResourceNotFoundException("User", receiverId);
+        }
+        // A comment is on THEIR photo or prompt - never an id borrowed from someone else.
+        if (request.targetPhotoId() != null
+                && photoRepository.findByIdAndUserId(request.targetPhotoId(), receiverId).isEmpty()) {
+            throw new ResourceNotFoundException("Photo", request.targetPhotoId());
+        }
+        if (request.targetPromptAnswerId() != null
+                && promptAnswerRepository.findByIdAndUserId(request.targetPromptAnswerId(), receiverId).isEmpty()) {
+            throw new ResourceNotFoundException("Prompt", request.targetPromptAnswerId());
+        }
 
         Entitlements entitlements = entitlementService.entitlementsOf(senderId);
 
@@ -103,7 +121,8 @@ public class LikeService {
                         original.getStatus() == LikeStatus.MATCHED
                                 ? matchService.findMatchFor(senderId, receiverId).orElse(null)
                                 : null,
-                        remainingLikes(senderId, entitlements));
+                        remainingLikes(senderId, entitlements),
+                        remainingSuperLikes(senderId, entitlements));
             }
         }
 
@@ -113,8 +132,17 @@ public class LikeService {
             throw new BusinessException(ErrorCode.ALREADY_LIKED);
         }
 
-        quotaService.consume(senderId, QuotaFeature.LIKE, entitlements.likesPerDay(),
-                "Upgrade for more likes every day");
+        /*
+         * Super likes are their own, much smaller allowance - that scarcity is what makes
+         * them mean something to the receiver. They do not also spend a normal like.
+         */
+        if (request.typeOrDefault() == LikeType.SUPER) {
+            quotaService.consume(senderId, QuotaFeature.SUPER_LIKE, entitlements.superLikesPerDay(),
+                    "Upgrade for more super likes every day");
+        } else {
+            quotaService.consume(senderId, QuotaFeature.LIKE, entitlements.likesPerDay(),
+                    "Upgrade for more likes every day");
+        }
 
         Like like = existing.orElseGet(() -> Like.builder()
                 .senderId(senderId)
@@ -124,7 +152,7 @@ public class LikeService {
         like.setStatus(LikeStatus.PENDING);
         like.setTargetPhotoId(request.targetPhotoId());
         like.setTargetPromptAnswerId(request.targetPromptAnswerId());
-        like.setNote(request.note());
+        like.setNote(request.noteOrNull());
         like.setClientLikeId(request.clientLikeId());
         like.setSeen(false);
         like = likeRepository.save(like);
@@ -140,9 +168,10 @@ public class LikeService {
         }
 
         notificationService.notifyAsync(receiverId, NotificationType.NEW_LIKE,
-                "Someone likes you", request.note(), senderId, "LIKE", like.getId(), null);
+                notificationTitle(like), like.getNote(), senderId, "LIKE", like.getId(), null);
 
-        return new LikeResultResponse(like.getId(), false, null, remainingLikes(senderId, entitlements));
+        return new LikeResultResponse(like.getId(), false, null,
+                remainingLikes(senderId, entitlements), remainingSuperLikes(senderId, entitlements));
     }
 
     private LikeResultResponse completeMatch(UUID senderId, UUID receiverId, Like outbound, Like inbound,
@@ -154,11 +183,16 @@ public class LikeService {
         Match match = matchService.createMatch(senderId, receiverId, MatchSource.MUTUAL_LIKE, null, List.of())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "Could not create the match"));
 
+        // The comments that started it open the conversation, in the order they were sent.
+        postCommentAsOpener(match, inbound);
+        postCommentAsOpener(match, outbound);
+
         return new LikeResultResponse(
                 outbound.getId(),
                 true,
                 matchService.getMatch(senderId, match.getId()),
-                remainingLikes(senderId, entitlements));
+                remainingLikes(senderId, entitlements),
+                remainingSuperLikes(senderId, entitlements));
     }
 
     @Transactional
@@ -220,19 +254,21 @@ public class LikeService {
                 : Map.of();
 
         Map<UUID, String> photoUrls = revealed ? photoUrlsFor(page) : Map.of();
+        Map<UUID, PromptAnswer> prompts = revealed ? promptsFor(page) : Map.of();
 
         List<InboundLikeResponse> rows = page.getContent().stream()
                 .map(like -> revealed
-                        ? revealedRow(like, summaries.get(like.getSenderId()), photoUrls)
+                        ? revealedRow(like, summaries.get(like.getSenderId()), photoUrls, prompts)
                         : blurredRow(like))
                 .filter(java.util.Objects::nonNull)
                 .toList();
 
         Page<InboundLikeResponse> mapped = new PageImpl<>(rows, pageable, page.getTotalElements());
+        LikeRepository.InboundCounts counts = likeRepository.countInboundAndUnseen(userId, LikeStatus.PENDING);
 
         return new LikesOverviewResponse(
-                likeRepository.countInbound(userId, LikeStatus.PENDING),
-                likeRepository.countUnseenInbound(userId, LikeStatus.PENDING),
+                counts.getTotal(),
+                counts.getUnseen(),
                 revealed,
                 revealed ? null : "Upgrade to see everyone who likes you",
                 PageResponse.from(mapped));
@@ -243,25 +279,31 @@ public class LikeService {
         likeRepository.markInboundSeen(userId);
     }
 
+    /** Powers the "3 super likes left" hint beside the send buttons. */
+    @Transactional(readOnly = true)
+    public LikeQuotaResponse quota(UUID userId) {
+        Entitlements entitlements = entitlementService.entitlementsOf(userId);
+        QuotaService.QuotaStatus likes = quotaService.status(userId, QuotaFeature.LIKE, entitlements.likesPerDay());
+        QuotaService.QuotaStatus supers =
+                quotaService.status(userId, QuotaFeature.SUPER_LIKE, entitlements.superLikesPerDay());
+        return new LikeQuotaResponse(likes.limit(), likes.remaining(), supers.limit(), supers.remaining(),
+                supers.resetsAt());
+    }
+
     @Transactional(readOnly = true)
     public long unseenLikeCount(UUID userId) {
         return likeRepository.countUnseenInbound(userId, LikeStatus.PENDING);
     }
 
-    /** Ids already acted on by this user - discovery must not show them again. */
-    @Transactional(readOnly = true)
-    public List<UUID> alreadyActedOn(UUID userId) {
-        List<UUID> liked = likeRepository.findReceiverIdsBySender(userId);
-        List<UUID> passed = passRepository.findActiveReceiverIds(userId, Instant.now());
-        return java.util.stream.Stream.concat(liked.stream(), passed.stream()).distinct().toList();
-    }
-
     // ---- redaction -----------------------------------------------------
 
-    private InboundLikeResponse revealedRow(Like like, UserSummaryResponse summary, Map<UUID, String> photoUrls) {
+    private InboundLikeResponse revealedRow(Like like, UserSummaryResponse summary, Map<UUID, String> photoUrls,
+                                            Map<UUID, PromptAnswer> prompts) {
         if (summary == null) {
             return null;
         }
+        PromptAnswer prompt = like.getTargetPromptAnswerId() == null ? null
+                : prompts.get(like.getTargetPromptAnswerId());
         return new InboundLikeResponse(
                 like.getId(),
                 false,
@@ -270,6 +312,9 @@ public class LikeService {
                 like.getNote(),
                 like.getTargetPhotoId(),
                 like.getTargetPhotoId() == null ? null : photoUrls.get(like.getTargetPhotoId()),
+                prompt == null ? null : prompt.getId(),
+                prompt == null ? null : prompt.getPrompt().getText(),
+                prompt == null ? null : prompt.getAnswer(),
                 like.isSeen(),
                 like.getCreatedAt());
     }
@@ -290,8 +335,23 @@ public class LikeService {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 like.isSeen(),
                 like.getCreatedAt());
+    }
+
+    private Map<UUID, PromptAnswer> promptsFor(Page<Like> page) {
+        List<UUID> ids = page.getContent().stream()
+                .map(Like::getTargetPromptAnswerId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return promptAnswerRepository.findAllById(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(PromptAnswer::getId, p -> p));
     }
 
     private Map<UUID, String> photoUrlsFor(Page<Like> page) {
@@ -306,6 +366,38 @@ public class LikeService {
                 .collect(java.util.stream.Collectors.toMap(
                         com.dating.platform.profile.entity.Photo::getId,
                         com.dating.platform.profile.entity.Photo::getUrl));
+    }
+
+    /**
+     * A like's comment becomes the first message of the match, as its sender, so the chat
+     * opens on what actually started it rather than an empty thread.
+     */
+    private void postCommentAsOpener(Match match, Like like) {
+        if (like.getNote() == null || match.getConversationId() == null) {
+            return;
+        }
+        chatService.send(like.getSenderId(), match.getConversationId(), new SendMessageRequest(
+                like.getNote(), null, null, null, "like-" + like.getId()));
+    }
+
+    private String notificationTitle(Like like) {
+        String what = like.getTargetPhotoId() != null ? " your photo"
+                : like.getTargetPromptAnswerId() != null ? " your prompt" : "";
+        if (like.getType() == LikeType.SUPER) {
+            return what.isEmpty() ? "Someone super liked you" : "Someone super liked" + what;
+        }
+        if (like.getNote() != null && !what.isEmpty()) {
+            return "Someone commented on" + what;
+        }
+        return what.isEmpty() ? "Someone likes you" : "Someone liked" + what;
+    }
+
+    private int remainingSuperLikes(UUID userId, Entitlements entitlements) {
+        int limit = entitlements.superLikesPerDay();
+        if (Entitlements.isUnlimited(limit)) {
+            return -1;
+        }
+        return Math.max(0, limit - quotaService.used(userId, QuotaFeature.SUPER_LIKE));
     }
 
     private int remainingLikes(UUID userId, Entitlements entitlements) {

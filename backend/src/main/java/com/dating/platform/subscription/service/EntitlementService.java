@@ -10,8 +10,10 @@ import com.dating.platform.subscription.entity.Subscription;
 import com.dating.platform.subscription.entity.Subscription.SubscriptionStatus;
 import com.dating.platform.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,14 @@ public class EntitlementService {
     private final SubscriptionRepository subscriptionRepository;
     private final AppProperties appProperties;
 
+    /**
+     * This bean through its proxy. The helpers below call {@link #entitlementsOf(UUID)}; a
+     * plain {@code this} call would bypass the cache and query subscriptions every time.
+     */
+    @Lazy
+    @Autowired
+    private EntitlementService self;
+
     @Cacheable(cacheNames = CacheConfig.CACHE_ENTITLEMENTS, key = "#userId")
     @Transactional(readOnly = true)
     public Entitlements entitlementsOf(UUID userId) {
@@ -54,11 +64,11 @@ public class EntitlementService {
     }
 
     public PlanTier tierOf(UUID userId) {
-        return entitlementsOf(userId).tier();
+        return self.entitlementsOf(userId).tier();
     }
 
     public boolean has(UUID userId, Feature feature) {
-        return entitlementsOf(userId).has(feature);
+        return self.entitlementsOf(userId).has(feature);
     }
 
     /** Throws {@link PremiumRequiredException} with the tier the client should upsell. */

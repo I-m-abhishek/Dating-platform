@@ -308,16 +308,26 @@ export interface UserSummary {
 
 export type FeedSort = 'RECOMMENDED' | 'NEWEST' | 'NEAREST' | 'RECENTLY_ACTIVE';
 
+/**
+ * The filter sheet. Age, distance and genders ("show me") are the account's preferences;
+ * interests are free; the rest are paid (ADVANCED_FILTERS) and the server rejects them
+ * for free accounts.
+ */
 export interface FeedFilter {
   minAge?: number;
   maxAge?: number;
   maxDistanceKm?: number;
   genders?: Gender[];
+  interestIds?: string[];
   intents?: RelationshipIntent[];
   minHeightCm?: number;
   maxHeightCm?: number;
   onlyVerified?: boolean;
-  interestIds?: string[];
+  /** 24 = active today, 168 = this week. */
+  activeWithinHours?: number;
+  children?: ChildrenPreference[];
+  drinking?: LifestyleChoice[];
+  smoking?: LifestyleChoice[];
   sort?: FeedSort;
 }
 
@@ -340,6 +350,8 @@ export interface FeedCard {
   highlights: string[];
   photoVerified: boolean;
   recentlyActive: boolean;
+  /** They super liked you - badged and moved to the front of the deck. */
+  superLikedYou?: boolean;
 }
 
 // ---- likes and matches -----------------------------------------------
@@ -349,6 +361,24 @@ export interface LikeResult {
   matched: boolean;
   match?: Match;
   likesRemainingToday: number;
+  superLikesRemainingToday: number;
+}
+
+/** Today's allowance; -1 means unlimited. */
+export interface LikeQuota {
+  likesLimit: number;
+  likesRemaining: number;
+  superLikesLimit: number;
+  superLikesRemaining: number;
+  resetsAt: string;
+}
+
+/** What a like is on, and the comment written under it. */
+export interface LikeIntent {
+  superLike?: boolean;
+  note?: string;
+  targetPhotoId?: string;
+  targetPromptAnswerId?: string;
 }
 
 export interface InboundLike {
@@ -359,6 +389,10 @@ export interface InboundLike {
   note?: string;
   targetPhotoId?: string;
   targetPhotoUrl?: string;
+  /** Set when they liked one of your prompts. */
+  targetPromptAnswerId?: string;
+  targetPrompt?: string;
+  targetPromptAnswer?: string;
   seen: boolean;
   likedAt: string;
 }
@@ -537,6 +571,7 @@ export interface Entitlements {
   renewsAt?: string;
   photoCommentsPerDay: number;
   likesPerDay: number;
+  superLikesPerDay: number;
   autoMatchPerWeek: number;
   autoMatchPerDay: number;
   rewindsPerDay: number;

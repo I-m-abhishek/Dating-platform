@@ -25,11 +25,13 @@ export const queryKeys = {
   discovery: {
     all: ['discovery'] as const,
     feed: (filter: unknown) => [...queryKeys.discovery.all, 'feed', filter] as const,
+    filters: () => [...queryKeys.discovery.all, 'filters'] as const,
   },
   likes: {
     all: ['likes'] as const,
     inbound: () => [...queryKeys.likes.all, 'inbound'] as const,
     unseenCount: () => [...queryKeys.likes.all, 'unseen-count'] as const,
+    quota: () => [...queryKeys.likes.all, 'quota'] as const,
   },
   matches: {
     all: ['matches'] as const,

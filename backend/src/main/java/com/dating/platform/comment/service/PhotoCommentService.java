@@ -33,7 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Comments on profile photos.
@@ -118,14 +121,30 @@ public class PhotoCommentService {
         Page<PhotoComment> page = commentRepository.findTopLevel(photoId, hiddenAuthors, pageable);
         User viewer = userRepository.findById(viewerId).orElse(null);
 
-        List<UUID> authorIds = page.getContent().stream().map(PhotoComment::getAuthorId).distinct().toList();
+        // One query for every reply on the page rather than one per comment.
+        List<UUID> withReplies = page.getContent().stream()
+                .filter(c -> c.getReplyCount() > 0)
+                .map(PhotoComment::getId)
+                .toList();
+        Set<UUID> hidden = Set.copyOf(hiddenAuthors);
+        Map<UUID, List<PhotoComment>> repliesByParent = withReplies.isEmpty() ? Map.of()
+                : commentRepository.findAllByParentCommentIdInAndHiddenFalseOrderByCreatedAtAsc(withReplies)
+                .stream()
+                .filter(reply -> !hidden.contains(reply.getAuthorId()))
+                .collect(Collectors.groupingBy(PhotoComment::getParentCommentId));
+
+        // Reply authors too - otherwise replies by anyone not also on the page have no author.
+        List<UUID> authorIds = Stream.concat(
+                        page.getContent().stream(),
+                        repliesByParent.values().stream().flatMap(List::stream))
+                .map(PhotoComment::getAuthorId)
+                .distinct()
+                .toList();
         Map<UUID, UserSummaryResponse> authors = userSummaryService.summariesFor(authorIds, viewer);
 
         List<CommentResponse> rows = page.getContent().stream()
                 .map(comment -> {
-                    List<CommentResponse> replies = comment.getReplyCount() == 0 ? List.of()
-                            : commentRepository
-                            .findAllByParentCommentIdAndHiddenFalseOrderByCreatedAtAsc(comment.getId())
+                    List<CommentResponse> replies = repliesByParent.getOrDefault(comment.getId(), List.of())
                             .stream()
                             .map(reply -> toResponse(reply, viewerId, authors.get(reply.getAuthorId()), List.of()))
                             .toList();

@@ -46,7 +46,7 @@ export function useMatchCount() {
     queryKey: queryKeys.matches.count(),
     queryFn: matchApi.count,
     select: (data) => data.count,
-    refetchInterval: 120_000,
+    refetchInterval: 300_000,
   });
 }
 

@@ -11,6 +11,8 @@ import {
   type PointerEvent,
 } from 'react';
 import { ProfileDetails } from '@/components/profile/ProfileDetails';
+import { LikeTargetSheet, type LikeTarget } from '@/components/likes/LikeTargetSheet';
+import { LikeableItem } from '@/components/likes/LikeableItem';
 import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import {
@@ -21,20 +23,22 @@ import {
   InfoIcon,
   MapPinIcon,
   ShieldCheckIcon,
+  StarIcon,
 } from '@/components/ui/icons';
+import { useLikeQuota } from '@/lib/hooks/useLikes';
 import { cn } from '@/lib/utils/cn';
 import { compatibilityLabel, distanceLabel } from '@/lib/utils/format';
-import type { FeedCard, Photo } from '@/lib/api/types';
+import type { FeedCard, LikeIntent, Photo, PromptAnswer } from '@/lib/api/types';
 
 export interface SwipeDeckProps {
   cards: FeedCard[];
-  onLike: (card: FeedCard) => void;
+  /** A like: plain, super, or on one photo / prompt with a comment. */
+  onLike: (card: FeedCard, intent: LikeIntent) => void;
   onPass: (card: FeedCard) => void;
-  /** Opens the comment thread for the photo currently on screen. */
-  onComment: (photo: Photo) => void;
 }
 
-type Direction = 'left' | 'right';
+/** Right is a like, up is a super like, left is a pass. */
+type Direction = 'left' | 'right' | 'up';
 
 /** How far a card must travel (px) before letting go counts as a swipe. */
 const SWIPE_DISTANCE = 110;
@@ -51,11 +55,13 @@ const EXIT_MS = 280;
  * line of bio or a prompt, shared interests - so the decision takes one screen, not a
  * scroll through a whole profile. The full profile is one tap away (the info button).
  *
- * <p>Swipe right to like, left to pass, or use the buttons; tap the left or right side of
- * the photo to step through photos. Per-card UI state (current photo, drag, exit) is stored
+ * <p>Swipe right to like, up to super like, left to pass, or use the buttons; tap the left
+ * or right side of the photo to step through photos. The comment button on the photo (and
+ * the reply button on a prompt) opens that photo or prompt with a comment box beneath it,
+ * so a like can say what caught your eye. Per-card UI state (current photo, drag, exit) is stored
  * with the card's id, so it resets by itself when the next card comes to the top.
  */
-export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) {
+export function SwipeDeck({ cards, onLike, onPass }: SwipeDeckProps) {
   const top = cards[0];
   const topId = top?.userId;
 
@@ -74,6 +80,7 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
   });
   const [exit, setExit] = useState<{ id?: string; dir: Direction } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [likeTarget, setLikeTarget] = useState<LikeTarget | null>(null);
 
   const photoIndex = photo.id === topId ? photo.index : 0;
   const dragX = drag.id === topId ? drag.x : 0;
@@ -100,14 +107,15 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
   );
 
   const fling = useCallback(
-    (dir: Direction) => {
+    (dir: Direction, intent?: LikeIntent) => {
       if (!top || exit?.id === top.userId) return;
       setDetailsOpen(false);
+      setLikeTarget(null);
       setExit({ id: top.userId, dir });
       // Let the card fly off before it leaves the list, or it would just vanish.
       exitTimer.current = setTimeout(() => {
-        if (dir === 'right') onLike(top);
-        else onPass(top);
+        if (dir === 'left') onPass(top);
+        else onLike(top, intent ?? { superLike: dir === 'up' });
       }, EXIT_MS);
     },
     [exit, onLike, onPass, top],
@@ -129,6 +137,12 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
   if (!top) return null;
 
   const currentPhoto = top.photos[photoIndex];
+
+  /** A like from a comment box: super flies up, a normal like flies right. */
+  const sendIntent = async (intent: LikeIntent) => {
+    fling(intent.superLike ? 'up' : 'right', intent);
+    return true;
+  };
 
   // ---- gestures -------------------------------------------------------
 
@@ -178,6 +192,13 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
     }
 
     const dx = event.clientX - current.startX;
+    const dy = event.clientY - current.startY;
+    // Mostly upward and far enough: a super like.
+    if (dy < -SWIPE_DISTANCE && Math.abs(dy) > Math.abs(dx) * 1.2) {
+      fling('up');
+      setDrag({ id: topId, x: dx, y: dy, active: false });
+      return;
+    }
     // Speed only counts if the finger was still moving when it let go - drag, pause and
     // release is a deliberate "put it back", not a flick.
     const stillMoving = event.timeStamp - current.lastT < 80;
@@ -205,21 +226,29 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
 
   // ---- presentation ---------------------------------------------------
 
-  const progress = Math.min(Math.abs(dragX) / SWIPE_DISTANCE, 1);
+  const upward = dragY < 0 && Math.abs(dragY) > Math.abs(dragX);
+  const progress = upward ? 0 : Math.min(Math.abs(dragX) / SWIPE_DISTANCE, 1);
+  const superProgress = upward ? Math.min(-dragY / SWIPE_DISTANCE, 1) : 0;
   const topStyle: CSSProperties = exiting
     ? {
-        transform: `translate(${exiting === 'right' ? 140 : -140}%, ${dragY * 0.3}px) rotate(${exiting === 'right' ? 18 : -18}deg)`,
+        transform:
+          exiting === 'up'
+            ? `translate(${dragX * 0.3}px, -140%)`
+            : `translate(${exiting === 'right' ? 140 : -140}%, ${dragY * 0.3}px) rotate(${exiting === 'right' ? 18 : -18}deg)`,
         transition: `transform ${EXIT_MS}ms cubic-bezier(0.4, 0, 1, 1), opacity ${EXIT_MS}ms`,
         opacity: 0.6,
       }
     : {
-        transform: `translate(${dragX}px, ${dragY * 0.3}px) rotate(${dragX / 22}deg)`,
+        transform: upward
+          ? `translate(${dragX * 0.3}px, ${dragY}px)`
+          : `translate(${dragX}px, ${dragY * 0.3}px) rotate(${dragX / 22}deg)`,
         transition: dragging ? 'none' : 'transform 380ms cubic-bezier(0.2, 0.9, 0.3, 1.15)',
       };
   const likeStamp = exiting === 'right' ? 1 : dragX > 0 ? progress : 0;
   const nopeStamp = exiting === 'left' ? 1 : dragX < 0 ? progress : 0;
+  const superStamp = exiting === 'up' ? 1 : superProgress;
   // The card underneath grows into place as the top one is pulled away.
-  const lift = exiting ? 1 : progress;
+  const lift = exiting ? 1 : Math.max(progress, superProgress);
 
   return (
     <div className="mx-auto flex w-full max-w-[440px] flex-col items-center gap-5">
@@ -286,6 +315,12 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
                 {compatibilityLabel(top.compatibilityScore)}
               </span>
             ) : null}
+            {top.superLikedYou ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-2.5 py-1 text-[11.5px] font-semibold text-white shadow-sm">
+                <StarIcon size={12} filled />
+                Super liked you
+              </span>
+            ) : null}
             {top.recentlyActive ? (
               <span className="glass-dark inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -296,27 +331,42 @@ export function SwipeDeck({ cards, onLike, onPass, onComment }: SwipeDeckProps) 
 
           <Stamp label="LIKE" opacity={likeStamp} side="left" />
           <Stamp label="NOPE" opacity={nopeStamp} side="right" />
+          <Stamp label="SUPER" opacity={superStamp} side="bottom" />
 
-          <CardInfo card={top} photoIndex={photoIndex} onOpenDetails={() => setDetailsOpen(true)} />
+          <CardInfo
+            card={top}
+            photoIndex={photoIndex}
+            onOpenDetails={() => setDetailsOpen(true)}
+            onCommentPhoto={currentPhoto ? () => setLikeTarget({ kind: 'photo', photo: currentPhoto }) : undefined}
+            onReplyPrompt={(prompt) => setLikeTarget({ kind: 'prompt', prompt })}
+          />
         </div>
       </div>
 
       <ActionBar
         disabled={Boolean(exiting)}
-        commentCount={currentPhoto?.commentCount ?? 0}
-        canComment={Boolean(currentPhoto)}
         onPass={() => fling('left')}
+        onSuperLike={() => fling('up')}
         onLike={() => fling('right')}
-        onComment={() => currentPhoto && onComment(currentPhoto)}
         name={top.displayName}
       />
 
       <ProfileSheet
+        key={top.userId}
         card={top}
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
         onPass={() => fling('left')}
+        onSuperLike={() => fling('up')}
         onLike={() => fling('right')}
+        onSend={sendIntent}
+      />
+
+      <LikeTargetSheet
+        name={top.displayName}
+        target={likeTarget}
+        onClose={() => setLikeTarget(null)}
+        onSend={sendIntent}
       />
     </div>
   );
@@ -327,10 +377,14 @@ function CardInfo({
   card,
   photoIndex,
   onOpenDetails,
+  onCommentPhoto,
+  onReplyPrompt,
 }: {
   card: FeedCard;
   photoIndex: number;
   onOpenDetails: () => void;
+  onCommentPhoto?: () => void;
+  onReplyPrompt: (prompt: PromptAnswer) => void;
 }) {
   const distance = distanceLabel(card.distanceKm);
   const shared = new Set(card.sharedInterests);
@@ -347,6 +401,8 @@ function CardInfo({
     photoIndex > 0 ? card.prompts[(photoIndex - 1) % Math.max(card.prompts.length, 1)] : undefined;
   const line = photoIndex === 0 ? (card.bio ?? card.prompts[0]?.answer) : prompt?.answer;
   const eyebrow = photoIndex === 0 ? (card.bio ? null : card.prompts[0]?.prompt) : prompt?.prompt;
+  // The prompt actually on screen, if any - that is the one "Reply" answers.
+  const shownPrompt = photoIndex === 0 ? (card.bio ? undefined : card.prompts[0]) : prompt;
 
   return (
     <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-5 text-white">
@@ -383,6 +439,16 @@ function CardInfo({
               </p>
             ) : null}
             <p className="line-clamp-2 text-[14.5px] leading-snug text-white/90">{line}</p>
+            {shownPrompt ? (
+              <button
+                type="button"
+                onClick={() => onReplyPrompt(shownPrompt)}
+                className="pointer-events-auto mt-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11.5px] font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur-md transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+              >
+                <CommentIcon size={12} />
+                Reply to prompt
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -406,14 +472,27 @@ function CardInfo({
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={onOpenDetails}
-        aria-label={`See ${card.displayName}'s full profile`}
-        className="glass-dark mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/25 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
-      >
-        <InfoIcon size={20} />
-      </button>
+      <div className="mb-0.5 flex shrink-0 flex-col gap-2.5">
+        {onCommentPhoto ? (
+          <button
+            type="button"
+            onClick={onCommentPhoto}
+            aria-label={`Like and comment on this photo of ${card.displayName}`}
+            title="Like & comment on this photo"
+            className="glass-dark flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/25 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+          >
+            <CommentIcon size={19} />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onOpenDetails}
+          aria-label={`See ${card.displayName}'s full profile`}
+          className="glass-dark flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-inset ring-white/25 transition-transform duration-200 ease-snap hover:scale-105 active:scale-95"
+        >
+          <InfoIcon size={20} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -465,18 +544,25 @@ function Stamp({
 }: {
   label: string;
   opacity: number;
-  side: 'left' | 'right';
+  side: 'left' | 'right' | 'bottom';
 }) {
   if (opacity <= 0) return null;
   const like = label === 'LIKE';
+  const superLike = label === 'SUPER';
   return (
     <span
       aria-hidden
       style={{ opacity }}
       className={cn(
         'pointer-events-none absolute top-14 rounded-xl border-[3px] px-3 py-1 font-display text-3xl font-bold tracking-wider',
-        side === 'left' ? 'left-6 -rotate-12' : 'right-6 rotate-12',
-        like ? 'border-emerald-400 text-emerald-400' : 'border-rose-500 text-rose-500',
+        side === 'left' && 'left-6 -rotate-12',
+        side === 'right' && 'right-6 rotate-12',
+        side === 'bottom' && '!top-auto bottom-40 left-1/2 -translate-x-1/2 -rotate-6',
+        superLike
+          ? 'border-sky-400 text-sky-400'
+          : like
+            ? 'border-emerald-400 text-emerald-400'
+            : 'border-rose-500 text-rose-500',
       )}
     >
       {label}
@@ -486,21 +572,20 @@ function Stamp({
 
 function ActionBar({
   disabled,
-  commentCount,
-  canComment,
   onPass,
+  onSuperLike,
   onLike,
-  onComment,
   name,
 }: {
   disabled: boolean;
-  commentCount: number;
-  canComment: boolean;
   onPass: () => void;
+  onSuperLike: () => void;
   onLike: () => void;
-  onComment: () => void;
   name: string;
 }) {
+  const quota = useLikeQuota();
+  const superLeft = quota.data?.superLikesRemaining;
+
   return (
     <div className="flex items-center justify-center gap-5">
       <button
@@ -514,18 +599,19 @@ function ActionBar({
         <CloseIcon size={28} strokeWidth={2.4} />
       </button>
 
+      {/* Smaller and in the middle, as on every deck: the rarer, stronger signal. */}
       <button
         type="button"
-        onClick={onComment}
-        disabled={disabled || !canComment}
-        aria-label={`Comment on this photo${commentCount > 0 ? `, ${commentCount} comments` : ''}`}
-        title="Comment on this photo"
-        className="relative flex h-12 w-12 items-center justify-center rounded-full bg-surface text-ink-muted shadow-card ring-1 ring-border transition-all duration-200 ease-snap hover:scale-105 hover:text-ink active:scale-95 disabled:opacity-50"
+        onClick={onSuperLike}
+        disabled={disabled}
+        aria-label={`Super like ${name}${superLeft != null && superLeft >= 0 ? `, ${superLeft} left today` : ''}`}
+        title="Super like - puts you at the top of their likes"
+        className="relative flex h-12 w-12 items-center justify-center rounded-full bg-surface text-sky-500 shadow-card ring-1 ring-border transition-all duration-200 ease-snap hover:scale-110 hover:bg-gradient-to-br hover:from-sky-500 hover:to-indigo-500 hover:text-white active:scale-95 disabled:opacity-50"
       >
-        <CommentIcon size={21} />
-        {commentCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[10.5px] font-semibold text-surface">
-            {commentCount}
+        <StarIcon size={22} filled />
+        {superLeft != null && superLeft >= 0 ? (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1 text-[10.5px] font-semibold text-white">
+            {superLeft}
           </span>
         ) : null}
       </button>
@@ -544,20 +630,39 @@ function ActionBar({
   );
 }
 
-/** Everything the card leaves out: bio, every prompt, the facts, interests and qualities. */
+/**
+ * Everything the card leaves out: every photo and prompt, the bio, the facts. Each photo
+ * and prompt has its own "like & comment" box underneath, like a full profile page.
+ */
 function ProfileSheet({
   card,
   open,
   onClose,
   onPass,
+  onSuperLike,
   onLike,
+  onSend,
 }: {
   card: FeedCard;
   open: boolean;
   onClose: () => void;
   onPass: () => void;
+  onSuperLike: () => void;
   onLike: () => void;
+  onSend: (intent: LikeIntent) => Promise<boolean>;
 }) {
+  const [openItem, setOpenItem] = useState<string | null>(null);
+
+  // Photos and prompts alternate, the way a profile is read.
+  const items: Array<{ key: string; target: LikeTarget }> = [];
+  const count = Math.max(card.photos.length, card.prompts.length);
+  for (let i = 0; i < count; i++) {
+    const photo = card.photos[i];
+    if (photo) items.push({ key: `photo-${photo.id}`, target: { kind: 'photo', photo } });
+    const prompt = card.prompts[i];
+    if (prompt) items.push({ key: `prompt-${prompt.id}`, target: { kind: 'prompt', prompt } });
+  }
+
   return (
     <Sheet
       open={open}
@@ -584,11 +689,25 @@ function ProfileSheet({
 
         {card.bio ? <p className="text-[15px] leading-relaxed text-ink">{card.bio}</p> : null}
 
-        {card.prompts.map((prompt) => (
-          <section key={prompt.id} className="space-y-1.5 rounded-xl2 bg-surface-muted p-4">
-            <p className="eyebrow">{prompt.prompt}</p>
-            <p className="font-display text-[19px] leading-[1.35] text-ink">{prompt.answer}</p>
-          </section>
+        {items.map(({ key, target }) => (
+          <LikeableItem
+            key={key}
+            name={card.displayName}
+            target={target}
+            open={openItem === key}
+            onToggle={() => setOpenItem((current) => (current === key ? null : key))}
+            onSend={onSend}
+            enabled
+          >
+            {target.kind === 'photo' ? (
+              <SheetPhoto photo={target.photo} alt={card.displayName} />
+            ) : (
+              <section className="space-y-1.5 rounded-xl2 bg-surface-muted p-4">
+                <p className="eyebrow">{target.prompt.prompt}</p>
+                <p className="font-display text-[19px] leading-[1.35] text-ink">{target.prompt.answer}</p>
+              </section>
+            )}
+          </LikeableItem>
         ))}
 
         <ProfileDetails
@@ -610,11 +729,28 @@ function ProfileSheet({
           >
             Pass
           </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={onSuperLike}
+            aria-label={`Super like ${card.displayName}`}
+            className="h-[52px] w-[52px] bg-gradient-to-br from-sky-500 to-indigo-500 text-white"
+          >
+            <StarIcon size={20} filled />
+          </Button>
           <Button size="lg" fullWidth onClick={onLike} leftIcon={<HeartIcon size={18} />}>
             Like
           </Button>
         </div>
       </div>
     </Sheet>
+  );
+}
+
+function SheetPhoto({ photo, alt }: { photo: Photo; alt: string }) {
+  return (
+    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl2 bg-surface-muted shadow-card">
+      <Image src={photo.url} alt={alt} fill sizes="(max-width: 768px) 100vw, 480px" className="object-cover" unoptimized />
+    </div>
   );
 }

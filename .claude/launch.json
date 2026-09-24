@@ -23,6 +23,16 @@
         "dev:https"
       ],
       "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location -LiteralPath 'E:/Dating Platform/backend'; ./mvnw.cmd -o spring-boot:run"
+      ],
+      "port": 8080
     }
   ]
 }

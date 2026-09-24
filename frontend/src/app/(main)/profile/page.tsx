@@ -135,6 +135,7 @@ function MyProfilePage() {
             heightCm={profile.heightCm}
             religion={profile.religion}
             zodiacSign={profile.zodiacSign}
+            interestedIn={account?.interestedIn}
             relationshipIntent={profile.relationshipIntent}
             drinking={profile.drinking}
             smoking={profile.smoking}

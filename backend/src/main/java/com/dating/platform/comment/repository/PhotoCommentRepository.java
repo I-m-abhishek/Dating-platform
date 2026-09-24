@@ -28,7 +28,9 @@ public interface PhotoCommentRepository extends JpaRepository<PhotoComment, UUID
                                     @Param("hiddenAuthors") Collection<UUID> hiddenAuthors,
                                     Pageable pageable);
 
-    List<PhotoComment> findAllByParentCommentIdAndHiddenFalseOrderByCreatedAtAsc(UUID parentCommentId);
+    /** Replies for a whole page of top-level comments in one query. */
+    List<PhotoComment> findAllByParentCommentIdInAndHiddenFalseOrderByCreatedAtAsc(
+            Collection<UUID> parentCommentIds);
 
     Page<PhotoComment> findAllByPhotoOwnerIdAndHiddenFalseOrderByCreatedAtDesc(UUID ownerId, Pageable pageable);
 

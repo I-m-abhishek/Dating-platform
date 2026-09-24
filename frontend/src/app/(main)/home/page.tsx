@@ -1,24 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { compose, withAuth, withErrorBoundary } from '@/hoc';
 import { TopBar } from '@/components/layout/TopBar';
 import { SwipeDeck } from '@/components/discovery/SwipeDeck';
 import { FilterSheet } from '@/components/discovery/FilterSheet';
-import { PhotoCommentSheet } from '@/components/profile/PhotoCommentSheet';
 import { Button } from '@/components/ui/Button';
 import { SlidersIcon } from '@/components/ui/icons';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useFeed } from '@/lib/hooks/useFeed';
-import { accountApi } from '@/lib/api/endpoints';
-import { queryKeys } from '@/lib/api/queryKeys';
+import { useFeed, useSaveFilters, useSavedFilters } from '@/lib/hooks/useFeed';
+import { usePaywall } from '@/lib/hooks/usePaywall';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { messageOf } from '@/lib/api/errors';
-import type { FeedFilter, Photo } from '@/lib/api/types';
+import type { FeedFilter, LikeIntent } from '@/lib/api/types';
 
 /**
  * The home feed.
@@ -28,52 +25,58 @@ import type { FeedFilter, Photo } from '@/lib/api/types';
  */
 function HomePage() {
   const account = useAuthStore((state) => state.account);
-  const setAccount = useAuthStore((state) => state.setAccount);
-  const queryClient = useQueryClient();
+  const saved = useSavedFilters();
 
-  // Seed the feed from the saved preferences so the sheet opens showing the real numbers
-  // rather than hardcoded defaults. withAuth guarantees the account is loaded by now.
-  const { cards, query, filter, applyFilter, hasMore, like, pass } = useFeed({
+  // The feed starts from the SAVED filters, so it must wait for them - starting from
+  // defaults and then swapping would flash the wrong people first.
+  if (saved.isPending) {
+    return (
+      <>
+        <TopBar title="Discover" subtitle="People we think you will get on with" />
+        <div className="px-4 pb-4 pt-2">
+          <Skeleton.Feed count={1} />
+        </div>
+      </>
+    );
+  }
+
+  // If the saved filters cannot be read, browse on the account's preferences instead.
+  const initialFilter: FeedFilter = saved.data ?? {
     sort: 'RECOMMENDED',
     minAge: account?.preferredMinAge,
     maxAge: account?.preferredMaxAge,
     maxDistanceKm: account?.preferredMaxDistanceKm,
-  });
+    genders: account?.interestedIn,
+  };
 
-  const savePreferences = useMutation({
-    mutationFn: accountApi.updatePreferences,
-    onSuccess: (updated) => {
-      setAccount(updated);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
-    },
-  });
+  return <Discover initialFilter={initialFilter} />;
+}
+
+function Discover({ initialFilter }: { initialFilter: FeedFilter }) {
+  const { cards, query, filter, applyFilter, hasMore, like, pass } = useFeed(initialFilter);
+  const saveFilters = useSaveFilters();
+  const { handleError } = usePaywall();
 
   /*
-   * Distance and age are real preferences, not a per-request whim: they also drive the
-   * auto-match engine and the Settings screen. Persisting them here keeps all three in
-   * agreement instead of letting the feed disagree with what the user saved.
+   * Filters are saved, not just applied: age, distance and "show me" are the account's
+   * preferences (they also drive auto-match, Settings and the profile), and the rest is
+   * stored so the sheet looks the same on the next visit and on another device.
    */
-  const onApplyFilter = (next: FeedFilter) => {
-    applyFilter(next);
-
-    const changed =
-      next.minAge !== account?.preferredMinAge ||
-      next.maxAge !== account?.preferredMaxAge ||
-      next.maxDistanceKm !== account?.preferredMaxDistanceKm;
-
-    if (changed) {
-      savePreferences.mutate({
-        preferredMinAge: next.minAge,
-        preferredMaxAge: next.maxAge,
-        preferredMaxDistanceKm: next.maxDistanceKm,
-      });
+  const onApplyFilter = async (next: FeedFilter): Promise<boolean> => {
+    try {
+      const stored = await saveFilters.mutateAsync(next);
+      applyFilter({ ...stored, sort: next.sort });
+      toast({ title: 'Filters saved', tone: 'success' });
+      return true;
+    } catch (error) {
+      handleError(error);
+      return false;
     }
   };
   const filtersOpen = useUiStore((state) => state.filtersOpen);
   const setFiltersOpen = useUiStore((state) => state.setFiltersOpen);
   const toast = useUiStore((state) => state.toast);
 
-  const [commentPhoto, setCommentPhoto] = useState<Photo | null>(null);
 
   /*
    * Swiped people are excluded server-side, so when the deck runs dry the same page simply
@@ -87,16 +90,22 @@ function HomePage() {
     void query.refetch();
   }, [cards.length, hasMore, query]);
 
-  const onLike = async (userId: string) => {
+  const onLike = async (userId: string, intent: LikeIntent) => {
     // Failures are already surfaced (paywall or toast) by the hook's onError.
-    const result = await like({ targetUserId: userId }).catch(() => null);
+    const result = await like({ targetUserId: userId, ...intent }).catch(() => null);
     if (!result) return;
     if (result.matched) {
       toast({
         title: 'It is a match',
-        description: 'Say hello before the moment passes.',
+        description: intent.note
+          ? 'Your comment is waiting for them in the chat.'
+          : 'Say hello before the moment passes.',
         tone: 'success',
       });
+    } else if (intent.superLike) {
+      toast({ title: 'Super like sent', description: 'You are at the top of their likes.', tone: 'success' });
+    } else if (intent.note) {
+      toast({ title: 'Like sent with your comment', tone: 'success' });
     }
   };
 
@@ -135,9 +144,8 @@ function HomePage() {
         ) : (
           <SwipeDeck
             cards={cards}
-            onLike={(card) => void onLike(card.userId)}
+            onLike={(card, intent) => void onLike(card.userId, intent)}
             onPass={(card) => void pass(card.userId).catch(() => undefined)}
-            onComment={setCommentPhoto}
           />
         )}
       </div>
@@ -145,10 +153,10 @@ function HomePage() {
       <FilterSheet
         open={filtersOpen}
         value={filter}
+        saving={saveFilters.isPending}
         onClose={() => setFiltersOpen(false)}
         onApply={onApplyFilter}
       />
-      <PhotoCommentSheet photo={commentPhoto} onClose={() => setCommentPhoto(null)} />
     </>
   );
 }

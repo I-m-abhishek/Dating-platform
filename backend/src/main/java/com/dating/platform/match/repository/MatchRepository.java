@@ -5,10 +5,12 @@ import com.dating.platform.match.entity.MatchStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,13 +40,6 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
             """)
     long countForUser(@Param("userId") UUID userId, @Param("status") MatchStatus status);
 
-    /** Every counterpart id, whatever the status - used to exclude them from discovery. */
-    @Query("""
-            select case when m.userAId = :userId then m.userBId else m.userAId end
-            from Match m
-            where m.userAId = :userId or m.userBId = :userId
-            """)
-    List<UUID> findAllCounterpartIds(@Param("userId") UUID userId);
 
     Optional<Match> findByConversationId(UUID conversationId);
 
@@ -58,4 +53,8 @@ public interface MatchRepository extends JpaRepository<Match, UUID> {
     List<Match> findBySource(@Param("userId") UUID userId,
                              @Param("status") MatchStatus status,
                              @Param("sources") List<com.dating.platform.match.entity.MatchSource> sources);
+
+    @Modifying
+    @Query("update Match m set m.lastInteractionAt = :at where m.id = :matchId")
+    int touchLastInteraction(@Param("matchId") UUID matchId, @Param("at") Instant at);
 }

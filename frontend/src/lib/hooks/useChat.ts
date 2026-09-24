@@ -22,7 +22,7 @@ export function useUnreadCount() {
     queryKey: queryKeys.chat.unreadCount(),
     queryFn: chatApi.unreadCount,
     select: (data) => data.count,
-    refetchInterval: 60_000,
+    refetchInterval: 180_000,
   });
 }
 
@@ -123,8 +123,12 @@ export function useConversation(conversationId: string) {
         return;
       }
       // Anything else on this topic is a message.
-      appendIncoming(payload as Message);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+      const message = payload as Message;
+      appendIncoming(message);
+      // Our own sends are echoed here too; the send mutation already refreshes the list.
+      if (message.senderId !== myIdRef.current) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
+      }
     });
 
     return () => {
@@ -150,6 +154,7 @@ export function useConversation(conversationId: string) {
       }),
     onSuccess: (message) => {
       appendIncoming(message);
+      // sendingState / bothSpoke can change after a send.
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversation(conversationId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.conversations() });
     },

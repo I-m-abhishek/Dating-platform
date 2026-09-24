@@ -12,11 +12,16 @@ import { FullPageLoader } from '@/components/ui/FullPageLoader';
 import { Spinner } from '@/components/ui/Spinner';
 import { CloseIcon, PlusIcon, StarIcon } from '@/components/ui/icons';
 import { useMyProfile, usePhotos, useReferenceData, useUpdateProfile } from '@/lib/hooks/useProfile';
-import { profileApi } from '@/lib/api/endpoints';
+import { useQueryClient } from '@tanstack/react-query';
+import { accountApi, profileApi } from '@/lib/api/endpoints';
+import { queryKeys } from '@/lib/api/queryKeys';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { humanise } from '@/lib/utils/format';
 import { messageOf } from '@/lib/api/errors';
-import type { ChildrenPreference, LifestyleChoice, RelationshipIntent } from '@/lib/api/types';
+import type { ChildrenPreference, Gender, LifestyleChoice, RelationshipIntent } from '@/lib/api/types';
+
+const GENDERS: Gender[] = ['WOMAN', 'MAN', 'NON_BINARY', 'OTHER'];
 
 const INTENTS: RelationshipIntent[] = [
   'LONG_TERM',
@@ -53,6 +58,12 @@ function EditProfilePage() {
   const { interests, qualities, prompts } = useReferenceData();
   const toast = useUiStore((state) => state.toast);
   const fileInput = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const account = useAuthStore((state) => state.account);
+  const setAccount = useAuthStore((state) => state.setAccount);
+  // Account-level, not profile-level: the same "Show me" the filters and Settings edit.
+  const [interestedIn, setInterestedIn] = useState<Gender[]>(account?.interestedIn ?? []);
+  const [savingInterestedIn, setSavingInterestedIn] = useState(false);
 
   const [form, setForm] = useState({ bio: '', jobTitle: '', school: '', hometown: '', heightCm: '' });
   const [intent, setIntent] = useState<RelationshipIntent | undefined>();
@@ -95,7 +106,27 @@ function EditProfilePage() {
     setList([...list, id]);
   };
 
+  const saveInterestedIn = async () => {
+    const current = [...(account?.interestedIn ?? [])].sort().join(',');
+    if ([...interestedIn].sort().join(',') === current) return;
+    setSavingInterestedIn(true);
+    try {
+      setAccount(await accountApi.updatePreferences({ interestedIn }));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
+    } catch (error) {
+      toast({ title: messageOf(error), tone: 'error' });
+    } finally {
+      setSavingInterestedIn(false);
+    }
+  };
+
   const onSave = () => {
+    if (interestedIn.length === 0) {
+      toast({ title: 'Choose who you are interested in', tone: 'error' });
+      return;
+    }
+    void saveInterestedIn();
     update.mutate({
       bio: form.bio,
       jobTitle: form.jobTitle,
@@ -127,7 +158,7 @@ function EditProfilePage() {
         showBack
         title="Edit profile"
         action={
-          <Button size="sm" loading={update.isPending} onClick={onSave}>
+          <Button size="sm" loading={update.isPending || savingInterestedIn} onClick={onSave}>
             Save
           </Button>
         }
@@ -217,6 +248,29 @@ function EditProfilePage() {
             value={form.heightCm}
             onChange={(event) => setForm({ ...form, heightCm: event.target.value })}
           />
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="eyebrow">Interested in</h2>
+          <p className="text-xs text-ink-subtle">
+            Who you see in Discover and Standouts - the same as &ldquo;Show me&rdquo; in Filters.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {GENDERS.map((gender) => (
+              <Chip
+                key={gender}
+                selected={interestedIn.includes(gender)}
+                onClick={() =>
+                  setInterestedIn((current) =>
+                    current.includes(gender) ? current.filter((item) => item !== gender) : [...current, gender],
+                  )
+                }
+              >
+                {humanise(gender)}
+              </Chip>
+            ))}
+          </div>
+          {interestedIn.length === 0 ? <p className="text-xs text-danger">Pick at least one.</p> : null}
         </section>
 
         <section className="space-y-3">
@@ -313,7 +367,7 @@ function EditProfilePage() {
           })}
         </section>
 
-        <Button fullWidth size="lg" loading={update.isPending} onClick={onSave}>
+        <Button fullWidth size="lg" loading={update.isPending || savingInterestedIn} onClick={onSave}>
           Save changes
         </Button>
       </div>

@@ -70,6 +70,7 @@ public record AppProperties(
         public record Tier(
                 @DefaultValue("5") int photoCommentsPerDay,
                 @DefaultValue("20") int likesPerDay,
+                @DefaultValue("1") int superLikesPerDay,
                 @DefaultValue("1") int autoMatchPerWeek,
                 @DefaultValue("0") int autoMatchPerDay,
                 @DefaultValue("0") int rewindsPerDay

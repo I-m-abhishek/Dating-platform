@@ -1,6 +1,8 @@
 package com.dating.platform.discovery.dto;
 
+import com.dating.platform.user.entity.enums.ChildrenPreference;
 import com.dating.platform.user.entity.enums.Gender;
+import com.dating.platform.user.entity.enums.LifestyleChoice;
 import com.dating.platform.user.entity.enums.RelationshipIntent;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
@@ -15,8 +17,14 @@ import java.util.UUID;
  * Home feed filters. Anything left {@code null} falls back to the user's saved preferences,
  * so the client can send a partial filter without restating the defaults.
  *
- * <p>Fields marked "advanced" require {@code Feature.ADVANCED_FILTERS}; the service rejects
- * them for free accounts rather than silently ignoring them, so the UI can show the upsell.
+ * <p>The free / paid split follows the major apps: who, how old, how far and shared
+ * interests are free, in the recommended order; intent, height, activity, family plans,
+ * habits, verification and every other sort order are "advanced" and require
+ * {@code Feature.ADVANCED_FILTERS}. Sorting counts because "Active now" or "Nearest" would
+ * otherwise hand out the paid activity and distance-first views for free.
+ *
+ * <p>The service rejects advanced fields for free accounts rather than silently ignoring
+ * them, so the UI can upsell.
  */
 @Schema(name = "FeedFilterRequest")
 public record FeedFilterRequest(
@@ -33,10 +41,14 @@ public record FeedFilterRequest(
         @Max(value = 20000, message = "Distance must be at most 20000 km")
         Integer maxDistanceKm,
 
+        /** "Show me" - the same setting as the profile's interested-in. */
         @Size(max = 4)
         Set<Gender> genders,
 
-        /** advanced */
+        /** Free: show people who share at least one of these interests. */
+        @Size(max = 6) Set<UUID> interestIds,
+
+        /** advanced - "looking for" */
         Set<RelationshipIntent> intents,
 
         /** advanced */
@@ -48,8 +60,17 @@ public record FeedFilterRequest(
         /** advanced */
         Boolean onlyVerified,
 
+        /** advanced - only people active within this many hours (24 = today, 168 = this week) */
+        @Min(1) @Max(720) Integer activeWithinHours,
+
+        /** advanced - family plans */
+        Set<ChildrenPreference> children,
+
         /** advanced */
-        @Size(max = 6) Set<UUID> interestIds,
+        Set<LifestyleChoice> drinking,
+
+        /** advanced */
+        Set<LifestyleChoice> smoking,
 
         SortOrder sort
 ) {
@@ -73,11 +94,29 @@ public record FeedFilterRequest(
     }
 
     public boolean usesAdvancedFilters() {
-        return (intents != null && !intents.isEmpty())
+        return notEmpty(intents)
                 || minHeightCm != null
                 || maxHeightCm != null
                 || Boolean.TRUE.equals(onlyVerified)
-                || (interestIds != null && !interestIds.isEmpty());
+                || activeWithinHours != null
+                || notEmpty(children)
+                || notEmpty(drinking)
+                || notEmpty(smoking)
+                || sortOrDefault() != SortOrder.RECOMMENDED;
+    }
+
+    /** The same filter with every paid field cleared - what a free account may use. */
+    public FeedFilterRequest withoutAdvanced() {
+        return new FeedFilterRequest(minAge, maxAge, maxDistanceKm, genders, interestIds,
+                null, null, null, null, null, null, null, null, SortOrder.RECOMMENDED);
+    }
+
+    /** The same filter with the preference-backed fields replaced. */
+    public FeedFilterRequest withPreferences(Integer minAge, Integer maxAge, Integer maxDistanceKm,
+                                             Set<Gender> genders) {
+        return new FeedFilterRequest(minAge, maxAge, maxDistanceKm, genders, interestIds,
+                intents, minHeightCm, maxHeightCm, onlyVerified, activeWithinHours,
+                children, drinking, smoking, sort);
     }
 
     public SortOrder sortOrDefault() {
@@ -85,6 +124,11 @@ public record FeedFilterRequest(
     }
 
     public static FeedFilterRequest empty() {
-        return new FeedFilterRequest(null, null, null, null, null, null, null, null, null, null);
+        return new FeedFilterRequest(null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null);
+    }
+
+    private static boolean notEmpty(Set<?> set) {
+        return set != null && !set.isEmpty();
     }
 }
